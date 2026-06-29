@@ -420,30 +420,10 @@ function getSupabase() {
 //  LOCAL DATA (fallback when Supabase not configured)
 //  Populated from DB after login when Supabase IS configured
 // =====================================================================
-let users = [
-  {id:1,name:"Admin User",email:"admin@leadme.com",password:"admin123",role:"admin",status:"approved",bank:{name:"Admin User",bankName:"First Bank",accountNumber:"0123456789"},scores:[],totalScore:0,joinDate:"2024-01-01",phone:"08012345678",flagged:false},
-  {id:2,name:"Grace Adaeze",email:"grace@test.com",password:"test123",role:"contestant",status:"approved",bank:{name:"Grace Adaeze",bankName:"GTBank",accountNumber:"0234567890"},scores:[{quiz:"Daily Devotional - May",score:850,date:"2024-05-20"},{quiz:"Major Quiz 1",score:1200,date:"2024-05-15"}],totalScore:2050,joinDate:"2024-04-10",phone:"08023456789",flagged:false},
-  {id:3,name:"Samuel Obi",email:"samuel@test.com",password:"test123",role:"contestant",status:"approved",bank:{name:"Samuel Obi",bankName:"Zenith Bank",accountNumber:"0345678901"},scores:[{quiz:"Daily Devotional - May",score:720,date:"2024-05-20"},{quiz:"Major Quiz 1",score:950,date:"2024-05-15"}],totalScore:1670,joinDate:"2024-04-15",phone:"08034567890",flagged:false},
-  {id:4,name:"Blessing Nwosu",email:"blessing@test.com",password:"test123",role:"contestant",status:"pending",bank:{name:"Blessing Nwosu",bankName:"Access Bank",accountNumber:"0456789012"},scores:[],totalScore:0,joinDate:"2024-05-18",phone:"08045678901",flagged:false},
-  {id:5,name:"Emmanuel Eze",email:"emmanuel@test.com",password:"test123",role:"contestant",status:"pending",bank:{name:"Emmanuel Eze",bankName:"UBA",accountNumber:"0567890123"},scores:[],totalScore:0,joinDate:"2024-05-19",phone:"08056789012",flagged:false},
-  {id:6,name:"Chioma Peters",email:"chioma@test.com",password:"test123",role:"contestant",status:"approved",bank:{name:"Chioma Peters",bankName:"Fidelity Bank",accountNumber:"0678901234"},scores:[{quiz:"Major Quiz 1",score:1450,date:"2024-05-15"},{quiz:"Daily Devotional - May",score:900,date:"2024-05-20"}],totalScore:2350,joinDate:"2024-04-20",phone:"08067890123",flagged:false},
-  {id:7,name:"David Okoro",email:"david@test.com",password:"test123",role:"contestant",status:"approved",bank:{name:"David Okoro",bankName:"Sterling Bank",accountNumber:"0789012345"},scores:[{quiz:"Major Quiz 1",score:800,date:"2024-05-15"}],totalScore:800,joinDate:"2024-04-25",phone:"08078901234",flagged:false},
-  {id:8,name:"Ruth Amara",email:"ruth@test.com",password:"test123",role:"contestant",status:"approved",bank:{name:"Ruth Amara",bankName:"Kuda Bank",accountNumber:"0890123456"},scores:[{quiz:"Daily Devotional - May",score:680,date:"2024-05-20"},{quiz:"Major Quiz 1",score:1100,date:"2024-05-15"}],totalScore:1780,joinDate:"2024-04-28",phone:"08089012345",flagged:false},
-];
-let quizzes=[
-  {id:1,name:"Major Quiz 1 - Book of John",questions:[
-    {id:1,text:"Who led the Israelites out of Egypt?",options:["Abraham","Moses","David","Joshua"],correct:1,time:20,points:1000},
-    {id:2,text:"How many days did God take to create the world?",options:["5 days","6 days","7 days","10 days"],correct:1,time:15,points:1000},
-    {id:3,text:"What was the garden where Adam and Eve lived?",options:["Garden of Gethsemane","Garden of Eden","Garden of Olives","Paradise Garden"],correct:1,time:20,points:1000},
-    {id:4,text:"Which psalm begins 'The Lord is my shepherd'?",options:["Psalm 22","Psalm 91","Psalm 23","Psalm 1"],correct:2,time:20,points:1000},
-    {id:5,text:"How many books are in the New Testament?",options:["27","39","66","24"],correct:0,time:15,points:1000}
-  ],type:"major",status:"completed",date:"2024-05-15",host:"Admin User"},
-  {id:2,name:"Daily Devotional - May",questions:[
-    {id:1,text:"What does John 3:16 teach us?",options:["God's love for the world","The Ten Commandments","The Sermon on the Mount","The Lord's Prayer"],correct:0,time:15,points:500},
-    {id:2,text:"'I can do all things through _____ who strengthens me'",options:["Moses","David","Christ","The Holy Spirit"],correct:2,time:20,points:500},
-    {id:3,text:"Which fruit of the Spirit comes first in Galatians 5:22?",options:["Peace","Love","Joy","Kindness"],correct:1,time:15,points:500}
-  ],type:"devotional",status:"completed",date:"2024-05-20",host:"Admin User"}
-];
+//  LIVE DATA STORE  (loaded from Supabase on login, never hardcoded)
+// =====================================================================
+let users = [];    // populated by loadAllData()
+let quizzes = [];  // populated by loadAllData()
 
 const OPT_COLORS=["#e53935","#1565C0","#2e7d32","#F9A825"];
 const OPT_ICONS=["◆","●","▲","★"];
@@ -454,15 +434,15 @@ let adminCharts={};
 //  LIVE GAME STATE  (Kahoot-style multiplayer)
 // =====================================================================
 let liveGame = {
-  pin: null,           // 6-digit code
+  pin: null,
   quizId: null,
-  sessionId: null,     // Supabase DB row id
-  players: {},         // playerId -> {name, score, answers:[]}
+  sessionId: null,
+  players: {},
   currentQ: 0,
-  phase: 'lobby',      // lobby | question | results | done
+  phase: 'lobby',
   hostTimer: null,
-  realtimeSub: null,   // Supabase realtime subscription
-  answerCounts: [],    // per-option answer counts for current Q
+  realtimeSub: null,
+  answerCounts: [],
   totalAnswered: 0,
 };
 let myPlayerSession = {
@@ -473,6 +453,7 @@ let myPlayerSession = {
   score: 0,
   currentQ: 0,
   quizId: null,
+  sessionId: null,
 };
 
 // =====================================================================
@@ -525,8 +506,7 @@ function getPending(){return users.filter(u=>u.role==='contestant'&&u.status==='
 function getFlagged(){return users.filter(u=>u.flagged);}
 function genPin(){return Math.floor(100000+Math.random()*900000).toString();}
 
-// Score float animation
-function showScoreFloat(pts, x, y){
+function showScoreFloat(pts,x,y){
   const el=document.createElement('div');
   el.className='score-float';
   el.textContent=`+${pts}`;
@@ -537,32 +517,83 @@ function showScoreFloat(pts, x, y){
 }
 
 // =====================================================================
+//  DATA LOADING FROM SUPABASE
+// =====================================================================
+async function loadAllData(){
+  const sb=getSupabase();
+  if(!sb) return;
+
+  // Load all profiles
+  const {data:profiles,error:pErr}=await sb.from('profiles').select('*');
+  if(pErr){console.error('profiles load error',pErr);return;}
+
+  // Load all scores
+  const {data:scores,error:sErr}=await sb.from('scores').select('*');
+  if(sErr) console.warn('scores load error',sErr);
+
+  // Load all quizzes
+  const {data:qdata,error:qErr}=await sb.from('quizzes').select('*').order('created_at',{ascending:false});
+  if(qErr) console.warn('quizzes load error',qErr);
+
+  // Map profiles into users array with scores attached
+  const scoreList = scores || [];
+  users = (profiles||[]).map(p=>{
+    const myScores = scoreList
+      .filter(s=>s.user_id===p.id)
+      .map(s=>({quiz:s.quiz_name||'Unknown',score:s.score||0,date:(s.played_at||'').split('T')[0]}));
+    const totalScore = p.total_score || myScores.reduce((acc,s)=>acc+s.score,0);
+    return {
+      id: p.id,
+      supabaseId: p.id,
+      name: p.name||'—',
+      email: p.email||'—',
+      phone: p.phone||'—',
+      role: p.role||'contestant',
+      status: p.status||'pending',
+      joinDate: (p.created_at||'').split('T')[0],
+      totalScore,
+      scores: myScores,
+      flagged: p.flagged||false,
+      bank: {
+        name: p.bank_name||'—',
+        bankName: p.bank_institution||'—',
+        accountNumber: p.bank_account||'—'
+      }
+    };
+  });
+
+  // Map quizzes — questions stored as jsonb array
+  quizzes = (qdata||[]).map(q=>{
+    const hostProfile = users.find(u=>u.id===q.host_id);
+    return {
+      id: q.id,
+      name: q.name||'Untitled Quiz',
+      type: q.type||'major',
+      status: q.status||'live',
+      questions: Array.isArray(q.questions) ? q.questions : [],
+      date: (q.created_at||'').split('T')[0],
+      host: hostProfile?hostProfile.name:'Admin'
+    };
+  });
+}
+
+// =====================================================================
 //  AUTH
 // =====================================================================
 function doLogin(){
   const email=document.getElementById('li-email').value.trim();
   const pass=document.getElementById('li-pass').value;
-  // Try Supabase first, fall back to local
   const sb=getSupabase();
-  if(sb){
-    sb.auth.signInWithPassword({email,password:pass}).then(({data,error})=>{
-      if(error){notify("Invalid credentials","error");return;}
-      // Fetch user profile from DB
-      sb.from('profiles').select('*').eq('id',data.user.id).single().then(({data:profile})=>{
-        if(!profile){notify("Profile not found","error");return;}
-        currentUser={...profile, supabaseId:data.user.id};
-        if(currentUser.status==='pending')return notify("Your account is pending admin approval","warning");
-        afterLogin();
-      });
-    });
-  } else {
-    // Local fallback
-    const user=users.find(u=>u.email===email&&u.password===pass);
-    if(!user)return notify("Invalid credentials","error");
-    if(user.status==="pending")return notify("Your account is pending admin approval","warning");
-    currentUser=user;
+  if(!sb){notify('Database not configured','error');return;}
+  sb.auth.signInWithPassword({email,password:pass}).then(async({data,error})=>{
+    if(error){notify('Invalid credentials','error');return;}
+    const {data:profile,error:pErr}=await sb.from('profiles').select('*').eq('id',data.user.id).single();
+    if(pErr||!profile){notify('Profile not found','error');return;}
+    currentUser={...profile,supabaseId:data.user.id};
+    if(currentUser.status==='pending')return notify('Your account is pending admin approval','warning');
+    await loadAllData();
     afterLogin();
-  }
+  });
 }
 function afterLogin(){
   if(currentUser.role==='admin'){goTo('s-admin');renderAdminDashboard();}
@@ -570,17 +601,16 @@ function afterLogin(){
   notify(`Welcome back, ${currentUser.name}! 🙏`);
 }
 function doLogout(){
-  // Unsubscribe realtime if active
   if(liveGame.realtimeSub){
     const sb=getSupabase();
     if(sb)sb.removeChannel(liveGame.realtimeSub);
     liveGame.realtimeSub=null;
   }
-  currentUser=null;activeQuiz=null;quizState=null;
+  currentUser=null;activeQuiz=null;quizState=null;users=[];quizzes=[];
   if(timerInterval)clearInterval(timerInterval);
   if(liveGame.hostTimer)clearInterval(liveGame.hostTimer);
   liveGame={pin:null,quizId:null,sessionId:null,players:{},currentQ:0,phase:'lobby',hostTimer:null,realtimeSub:null,answerCounts:[],totalAnswered:0};
-  myPlayerSession={pin:null,nickname:null,playerId:null,score:0,currentQ:0,quizId:null};
+  myPlayerSession={pin:null,nickname:null,playerId:null,authUid:null,score:0,currentQ:0,quizId:null,sessionId:null};
   goTo('s-landing');
 }
 function doRegister(){
@@ -591,26 +621,17 @@ function doRegister(){
   const bname=document.getElementById('rg-bname').value.trim();
   const bank=document.getElementById('rg-bank').value.trim();
   const acct=document.getElementById('rg-acct').value.trim();
-  if(!name||!email||!pass||!phone||!bname||!bank||!acct)return notify("Please fill all fields","error");
+  if(!name||!email||!pass||!phone||!bname||!bank||!acct)return notify('Please fill all fields','error');
   const sb=getSupabase();
-  if(sb){
-    // Metadata is read by the on_auth_user_created DB trigger (see supabase_setup.sql),
-    // which auto-creates the profiles row — no manual insert needed here.
-    sb.auth.signUp({
-      email,password:pass,
-      options:{data:{name,phone,bank_name:bname,bank_institution:bank,bank_account:acct}}
-    }).then(({data,error})=>{
-      if(error){notify(error.message,"error");return;}
-      notify("Registration successful! Awaiting admin approval 🎉");
-      goTo('s-landing');
-    });
-  } else {
-    const existing=users.find(u=>u.email===email);
-    if(existing){users=users.map(u=>u.email===email?{...u,flagged:true}:u);return notify("⚠️ Email already registered! Admin notified.","error");}
-    users.push({id:users.length+1,name,email,password:pass,role:"contestant",status:"pending",bank:{name:bname,bankName:bank,accountNumber:acct},scores:[],totalScore:0,joinDate:new Date().toISOString().split("T")[0],phone,flagged:false});
-    notify("Registration successful! Awaiting admin approval 🎉");
+  if(!sb){notify('Database not configured','error');return;}
+  sb.auth.signUp({
+    email,password:pass,
+    options:{data:{name,phone,bank_name:bname,bank_institution:bank,bank_account:acct}}
+  }).then(({data,error})=>{
+    if(error){notify(error.message,'error');return;}
+    notify('Registration successful! Awaiting admin approval 🎉');
     goTo('s-landing');
-  }
+  });
 }
 
 // =====================================================================
@@ -618,20 +639,18 @@ function doRegister(){
 // =====================================================================
 function joinByPin(){
   const pin=document.getElementById('pin-input').value.trim();
-  if(pin.length!==6||!/^\d+$/.test(pin))return notify("Enter a valid 6-digit PIN","error");
+  if(pin.length!==6||!/^\d+$/.test(pin))return notify('Enter a valid 6-digit PIN','error');
   const sb=getSupabase();
   if(sb){
-    // Look up live session in Supabase
     sb.from('live_sessions').select('*,quizzes(name)').eq('pin',pin).eq('phase','lobby').single().then(({data,error})=>{
-      if(error||!data)return notify("No active game with that PIN","error");
+      if(error||!data)return notify('No active game with that PIN','error');
       myPlayerSession.pin=pin;
       myPlayerSession.quizId=data.quiz_id;
       document.getElementById('pj-quizname').textContent='📖 '+data.quizzes.name;
       goTo('s-pinentry');
     });
   } else {
-    // Local mode: check liveGame
-    if(liveGame.pin!==pin||liveGame.phase!=='lobby')return notify("No active game with that PIN","error");
+    if(liveGame.pin!==pin||liveGame.phase!=='lobby')return notify('No active game with that PIN','error');
     myPlayerSession.pin=pin;
     myPlayerSession.quizId=liveGame.quizId;
     const qz=quizzes.find(q=>q.id===liveGame.quizId);
@@ -641,26 +660,23 @@ function joinByPin(){
 }
 function confirmJoin(){
   const nick=document.getElementById('pj-nickname').value.trim();
-  if(!nick)return notify("Enter your name","error");
+  if(!nick)return notify('Enter your name','error');
   myPlayerSession.nickname=nick;
   myPlayerSession.playerId='p_'+Date.now()+'_'+Math.random().toString(36).slice(2,6);
   myPlayerSession.score=0;
   myPlayerSession.currentQ=0;
-
   const sb=getSupabase();
   if(sb){
-    // Anonymous sign-in gives this guest a real auth.uid() — without this,
-    // the database has no way to tell "your row" from "someone else's row".
     sb.auth.signInAnonymously().then(({data:authData,error:authErr})=>{
-      if(authErr){notify("Could not join game: "+authErr.message,"error");return;}
+      if(authErr){notify('Could not join game: '+authErr.message,'error');return;}
       myPlayerSession.authUid=authData.user.id;
       sb.from('live_sessions').select('id').eq('pin',myPlayerSession.pin).eq('phase','lobby').single().then(({data})=>{
-        if(!data)return notify("Game no longer accepting players","error");
+        if(!data)return notify('Game no longer accepting players','error');
         sb.from('live_players').insert([{
           session_id:data.id,auth_uid:myPlayerSession.authUid,player_id:myPlayerSession.playerId,
           nickname:nick,score:0
         }]).then(({error})=>{
-          if(error){notify("Could not join game","error");return;}
+          if(error){notify('Could not join game','error');return;}
           myPlayerSession.sessionId=data.id;
           enterLobby();
           subscribeToGameAsPlayer(data.id);
@@ -668,7 +684,6 @@ function confirmJoin(){
       });
     });
   } else {
-    // Local mode
     if(!liveGame.players)liveGame.players={};
     liveGame.players[myPlayerSession.playerId]={name:nick,score:0,answers:[]};
     refreshLobbyHostUI();
@@ -682,8 +697,6 @@ function enterLobby(){
   goTo('s-gamelobby');
   renderLobbyPlayers();
 }
-
-// Poll/refresh lobby player list for players (local mode)
 let lobbyInterval=null;
 function renderLobbyPlayers(){
   if(lobbyInterval)clearInterval(lobbyInterval);
@@ -693,7 +706,6 @@ function renderLobbyPlayers(){
       document.getElementById('gl-count').textContent=players.length;
       document.getElementById('gl-players').innerHTML=players.map(p=>`<div class="player-chip">🙏 ${p.name}</div>`).join('');
     } else if(liveGame.phase==='question'){
-      // Host started the game — start quiz for this player
       clearInterval(lobbyInterval);
       startLiveQuizAsPlayer();
     }
@@ -707,7 +719,6 @@ function startLiveQuizAsPlayer(){
   renderQuizQuestion();
   goTo('s-quiz');
   startTimer();
-  // Show live bar
   document.getElementById('q-livebar').style.display='flex';
   syncLivePlayerState();
 }
@@ -716,18 +727,20 @@ function startLiveQuizAsPlayer(){
 //  LIVE GAME — HOST SIDE
 // =====================================================================
 function renderAdminLiveHost(){
+  const qlist = quizzes.filter(q=>q.questions&&q.questions.length>0);
   document.getElementById('a-livehost').innerHTML=`
     <div style="font-weight:800;font-size:20px;color:var(--primary);margin-bottom:6px">🎮 Live Game Host</div>
-    <div style="font-size:14px;color:var(--muted);margin-bottom:18px">Create a live multiplayer quiz session with a shareable PIN. Up to 500 players.</div>
+    <div style="font-size:14px;color:var(--muted);margin-bottom:18px">Create a live multiplayer quiz session with a shareable PIN.</div>
     <div class="card" style="margin-bottom:16px">
       <div style="font-weight:700;font-size:16px;color:var(--primary);margin-bottom:14px">Choose a quiz to host live</div>
-      ${quizzes.map(q=>`
+      ${qlist.length===0?'<div style="color:var(--muted)">No quizzes available. Create one in the Quizzes tab first.</div>':
+        qlist.map(q=>`
         <div style="display:flex;justify-content:space-between;align-items:center;padding:14px;border-radius:12px;border:1.5px solid var(--border);margin-bottom:10px;background:#f9fffe">
           <div>
             <div style="font-weight:700;font-size:15px">${q.name}</div>
             <div style="font-size:12px;color:var(--muted);margin-top:2px">${q.questions.length} questions · ${q.type}</div>
           </div>
-          <button class="gbtn" onclick="hostCreateSession(${q.id})" style="padding:10px 20px;font-size:14px;background:linear-gradient(135deg,var(--primary),var(--primaryDk))">
+          <button class="gbtn" onclick="hostCreateSession('${q.id}')" style="padding:10px 20px;font-size:14px;background:linear-gradient(135deg,var(--primary),var(--primaryDk))">
             🚀 Host Live
           </button>
         </div>`).join('')}
@@ -748,8 +761,6 @@ async function hostCreateSession(quizId){
   const pin=genPin();
   const qz=quizzes.find(q=>q.id===quizId);
   if(!qz)return;
-
-  // Reset liveGame
   liveGame.pin=pin;
   liveGame.quizId=quizId;
   liveGame.players={};
@@ -757,18 +768,16 @@ async function hostCreateSession(quizId){
   liveGame.phase='lobby';
   liveGame.totalAnswered=0;
   liveGame.answerCounts=new Array(qz.questions[0].options.length).fill(0);
-
   const sb=getSupabase();
   if(sb){
     const {data,error}=await sb.from('live_sessions').insert([{
       pin,quiz_id:quizId,phase:'lobby',current_question:0,
       host_id:currentUser.supabaseId||currentUser.id
     }]).select().single();
-    if(error){notify("DB error: "+error.message,"error");return;}
+    if(error){notify('DB error: '+error.message,'error');return;}
     liveGame.sessionId=data.id;
     subscribeToSessionAsHost(data.id);
   }
-
   document.getElementById('lh-quizname').textContent=qz.name;
   document.getElementById('lh-pin').textContent=pin;
   document.getElementById('lh-pinbig').textContent=pin;
@@ -779,11 +788,8 @@ async function hostCreateSession(quizId){
   document.getElementById('lh-active').style.display='none';
   document.getElementById('lh-postboard').style.display='none';
   goTo('s-livehost');
-
-  // Poll in local mode
   if(!sb) startHostLobbyPoll();
 }
-
 function startHostLobbyPoll(){
   let hostPoll=setInterval(()=>{
     if(liveGame.phase!=='lobby'){clearInterval(hostPoll);return;}
@@ -800,7 +806,6 @@ function refreshLobbyHostUI(){
   if(count>=1){btn.disabled=false;btn.style.opacity='1';btn.style.cursor='pointer';}
   else{btn.disabled=true;btn.style.opacity='.5';btn.style.cursor='not-allowed';}
 }
-
 async function hostStartGame(){
   const qz=quizzes.find(q=>q.id===liveGame.quizId);
   if(!qz)return;
@@ -808,12 +813,10 @@ async function hostStartGame(){
   liveGame.currentQ=0;
   liveGame.answerCounts=new Array(qz.questions[0].options.length).fill(0);
   liveGame.totalAnswered=0;
-
   const sb=getSupabase();
   if(sb){
     await sb.from('live_sessions').update({phase:'question',current_question:0,question_started_at:new Date().toISOString()}).eq('id',liveGame.sessionId);
   }
-
   document.getElementById('lh-lobby').style.display='none';
   document.getElementById('lh-active').style.display='block';
   renderHostQuestion();
@@ -857,7 +860,6 @@ function hostStartTimer(){
 function hostRevealAnswers(){
   const qz=quizzes.find(q=>q.id===liveGame.quizId);
   const q=qz.questions[liveGame.currentQ];
-  // Highlight correct answer
   q.options.forEach((_,i)=>{
     const bar=document.getElementById('lh-opt-bar-'+i);
     if(bar&&i===q.correct){bar.style.background='#2e7d32';bar.parentElement.parentElement.style.border='2px solid #2e7d32';}
@@ -868,7 +870,6 @@ async function hostNextQuestion(){
   const qz=quizzes.find(q=>q.id===liveGame.quizId);
   const next=liveGame.currentQ+1;
   if(next>=qz.questions.length){
-    // Done
     liveGame.phase='done';
     clearInterval(liveGame.hostTimer);
     document.getElementById('lh-active').style.display='none';
@@ -895,10 +896,7 @@ function renderFinalBoard(){
     </div>`).join('');
 }
 async function endLiveGame(){
-  // Save top scores to local users array (or Supabase)
   const sorted=Object.entries(liveGame.players).sort((a,b)=>b[1].score-a[1].score);
-  const qz=quizzes.find(q=>q.id===liveGame.quizId);
-  const entry={quiz:qz.name,score:0,date:new Date().toISOString().split('T')[0]};
   notify(`Game ended. ${sorted.length} players scored!`);
   const sb=getSupabase();
   if(sb){
@@ -914,7 +912,6 @@ async function endLiveGame(){
 // =====================================================================
 function subscribeToSessionAsHost(sessionId){
   const sb=getSupabase();if(!sb)return;
-  // Subscribe to live_players changes
   liveGame.realtimeSub=sb.channel('host-'+sessionId)
     .on('postgres_changes',{event:'INSERT',schema:'public',table:'live_players',filter:`session_id=eq.${sessionId}`},(payload)=>{
       const p=payload.new;
@@ -925,7 +922,6 @@ function subscribeToSessionAsHost(sessionId){
       const p=payload.new;
       if(liveGame.players[p.player_id]){
         liveGame.players[p.player_id].score=p.score;
-        // Update answer counts
         if(p.last_answer!==null&&p.last_answer!==undefined){
           const idx=p.last_answer;
           if(idx>=0&&idx<liveGame.answerCounts.length){
@@ -947,7 +943,6 @@ function subscribeToGameAsPlayer(sessionId){
     .on('postgres_changes',{event:'UPDATE',schema:'public',table:'live_sessions',filter:`id=eq.${sessionId}`},(payload)=>{
       const s=payload.new;
       if(s.phase==='question'&&myPlayerSession.currentQ<s.current_question){
-        // Advance to next question
         myPlayerSession.currentQ=s.current_question;
         if(quizState){
           quizState.currentQ=s.current_question;
@@ -960,7 +955,6 @@ function subscribeToGameAsPlayer(sessionId){
       } else if(s.phase==='question'&&myPlayerSession.currentQ===0&&quizState===null){
         startLiveQuizAsPlayer();
       } else if(s.phase==='done'){
-        // Show final standings
         finishQuiz();
       }
     })
@@ -975,20 +969,14 @@ function updateHostAnswerBars(){
     if(cnt)cnt.textContent=c;
   });
 }
-
-// Live player answer reporting
 async function reportAnswerToHost(optIdx){
   const sb=getSupabase();
   if(sb&&myPlayerSession.sessionId){
-    // The server (not this browser) decides how many points this is worth.
-    // It looks up the correct answer and timing itself and writes the score.
     const {data,error}=await sb.rpc('submit_live_answer',{
       p_session_id:myPlayerSession.sessionId,
       p_chosen_option:optIdx
     });
     if(!error&&data&&quizState&&quizState.results.length){
-      // Reconcile: the UI showed an optimistic score instantly for good
-      // feel, now correct it to whatever the server actually awarded.
       const lastResult=quizState.results[quizState.results.length-1];
       const diff=data.awarded-lastResult.earned;
       if(diff!==0){
@@ -1004,7 +992,6 @@ async function reportAnswerToHost(optIdx){
       myPlayerSession.score=quizState.score;
     }
   } else {
-    // Local
     if(liveGame.players&&liveGame.players[myPlayerSession.playerId]){
       liveGame.players[myPlayerSession.playerId].score=myPlayerSession.score;
       liveGame.answerCounts[optIdx]=(liveGame.answerCounts[optIdx]||0)+1;
@@ -1014,7 +1001,6 @@ async function reportAnswerToHost(optIdx){
   }
 }
 function syncLivePlayerState(){
-  // Update live count display for players
   const count=Object.keys(liveGame.players||{}).length;
   const el=document.getElementById('q-livecount');
   if(el)el.textContent=count+' players';
@@ -1052,14 +1038,15 @@ function makeSpeedo(value,max,label,color){
 // =====================================================================
 function renderContestantOverview(){
   const u=users.find(x=>x.id===currentUser.id)||currentUser;
-  document.getElementById('c-username').textContent=u.name;
+  document.getElementById('c-username').textContent=u.name||currentUser.name;
   const lb=getLeaderboard();
   const myRank=lb.findIndex(x=>x.id===u.id)+1;
-  const acc=u.scores.length>0?Math.round((u.totalScore/(u.scores.length*1000))*100):0;
+  const myScores=u.scores||[];
+  const acc=myScores.length>0?Math.round((u.totalScore/(myScores.length*1000))*100):0;
   document.getElementById('c-stats').innerHTML=[
-    ['🏆 Total Score',u.totalScore.toLocaleString(),'#F9A825'],
+    ['🏆 Total Score',(u.totalScore||0).toLocaleString(),'#F9A825'],
     ['🎯 My Rank',myRank>0?`#${myRank}`:'—','var(--primary)'],
-    ['📖 Quizzes Taken',u.scores.length,'var(--secondary)'],
+    ['📖 Quizzes Taken',myScores.length,'var(--secondary)'],
     ['✅ Accuracy',acc+'%','var(--teal)']
   ].map(([l,v,c])=>`<div class="card" style="text-align:center;border-top:4px solid ${c}">
     <div style="font-size:12px;color:var(--muted);font-weight:600">${l}</div>
@@ -1067,19 +1054,22 @@ function renderContestantOverview(){
   </div>`).join('');
   document.getElementById('c-speedos').innerHTML=
     makeSpeedo(acc,100,'Accuracy','var(--primary)')+
-    makeSpeedo(myRank>0?Math.max(0,Math.round((1-myRank/lb.length)*100)):0,100,'Rank Score','var(--secondary)')+
-    makeSpeedo(u.scores.length,Math.max(5,quizzes.length),'Participation','#F9A825');
+    makeSpeedo(myRank>0?Math.max(0,Math.round((1-myRank/Math.max(lb.length,1))*100)):0,100,'Rank Score','var(--secondary)')+
+    makeSpeedo(myScores.length,Math.max(5,quizzes.length),'Participation','#F9A825');
   const rs=document.getElementById('c-recentscores');
-  if(u.scores.length===0){rs.innerHTML='<div style="color:var(--muted);font-size:14px">No quiz scores yet. Play a quiz to get started! 🎯</div>';return;}
+  if(myScores.length===0){rs.innerHTML='<div style="color:var(--muted);font-size:14px">No quiz scores yet. Play a quiz to get started! 🎯</div>';return;}
   rs.innerHTML=`<div style="font-weight:700;font-size:15px;color:var(--primary);margin-bottom:12px">📈 Recent Scores</div>`+
-    u.scores.slice(-5).reverse().map((s,i,arr)=>`
+    myScores.slice(-5).reverse().map((s,i,arr)=>`
       <div style="display:flex;justify-content:space-between;align-items:center;padding:10px 0;${i<arr.length-1?'border-bottom:1px solid var(--border)':''}">
         <div><div style="font-weight:600;font-size:14px">${s.quiz}</div><div style="font-size:12px;color:var(--muted)">${s.date}</div></div>
         <span class="badge" style="background:${s.score>800?'#e8f5e9':'#e3f2fd'};color:${s.score>800?'var(--primary)':'var(--secondary)'}">${s.score.toLocaleString()} pts</span>
       </div>`).join('');
 }
 function renderContestantQuizzes(){
-  document.getElementById('c-quizlist').innerHTML=quizzes.map(q=>`
+  const liveQuizzes=quizzes.filter(q=>q.questions&&q.questions.length>0);
+  document.getElementById('c-quizlist').innerHTML=liveQuizzes.length===0
+    ?'<div class="card" style="color:var(--muted)">No quizzes available yet. Check back soon! 🎯</div>'
+    :liveQuizzes.map(q=>`
     <div class="card" style="margin-bottom:12px">
       <div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:10px">
         <div>
@@ -1088,17 +1078,19 @@ function renderContestantQuizzes(){
         </div>
         <div style="display:flex;gap:8px;align-items:center">
           <span class="badge" style="background:${q.type==='devotional'?'#e0f2f1':'#f3e5f5'};color:${q.type==='devotional'?'var(--teal)':'#6A1B9A'}">${q.type}</span>
-          <button class="gbtn" onclick="startQuiz(${q.id})" style="padding:8px 18px;font-size:13px;background:linear-gradient(135deg,var(--primary),var(--primaryDk))">▶ Play Solo</button>
+          <button class="gbtn" onclick="startQuiz('${q.id}')" style="padding:8px 18px;font-size:13px;background:linear-gradient(135deg,var(--primary),var(--primaryDk))">▶ Play Solo</button>
         </div>
       </div>
     </div>`).join('');
 }
 function renderContestantLeaderboard(){
   const lb=getLeaderboard();
-  document.getElementById('c-lbody').innerHTML=lb.slice(0,10).map((u,i)=>`
+  document.getElementById('c-lbody').innerHTML=lb.length===0
+    ?'<div style="color:var(--muted);font-size:14px;padding:20px 0">No scores yet. Be the first! 🏆</div>'
+    :lb.slice(0,10).map((u,i)=>`
     <div style="display:flex;align-items:center;gap:12px;padding:12px 0;${i<9?'border-bottom:1px solid var(--border)':''};${u.id===currentUser.id?'background:#e8f5e9;border-radius:8px;padding-left:8px':''}">
-      <div style="width:32px;height:32px;border-radius:50%;background:${i===0?'#F9A825':i===1?'#C0C0C0':i===2?'#CD7F32':'var(--border)'};display:flex;align-items:center;justify-content:center;font-weight:800;font-size:13px;color:${i<3?'var(--brown)':'var(--muted)'}">#${i+1}</div>
-      <div style="width:36px;height:36px;border-radius:50%;background:#e8f5e9;display:flex;align-items:center;justify-content:center;font-weight:700;color:var(--primary);font-size:15px">${u.name[0]}</div>
+      <div style="width:32px;height:32px;border-radius:50%;background:${i===0?'#F9A825':i===1?'#C0C0C0':i===2?'#CD7F32':'var(--border)'};display:flex;align-items:center;justify-content:center;font-weight:800;font-size:13px;color:${i<3?'var(--brown)':'var(--muted)'};">#${i+1}</div>
+      <div style="width:36px;height:36px;border-radius:50%;background:#e8f5e9;display:flex;align-items:center;justify-content:center;font-weight:700;color:var(--primary);font-size:15px">${(u.name||'?')[0]}</div>
       <div style="flex:1"><div style="font-weight:600;font-size:14px">${u.name}${u.id===currentUser.id?' <span class="badge" style="background:#e8f5e9;color:var(--primary);font-size:11px">You</span>':''}</div><div style="font-size:12px;color:var(--muted)">${u.scores.length} quizzes</div></div>
       <div style="font-weight:800;font-size:16px;color:var(--primary)">${u.totalScore.toLocaleString()}</div>
     </div>`).join('');
@@ -1106,7 +1098,15 @@ function renderContestantLeaderboard(){
 function renderContestantProfile(){
   const u=users.find(x=>x.id===currentUser.id)||currentUser;
   document.getElementById('c-profilebody').innerHTML=`<div style="font-weight:700;font-size:17px;color:var(--primary);margin-bottom:14px">👤 My Profile</div>`+
-    [['Full Name',u.name],['Email',u.email],['Phone',u.phone],['Join Date',u.joinDate],['Account Name',u.bank.name],['Bank Name',u.bank.bankName],['Account Number',u.bank.accountNumber.replace(/(\d{4})(\d{4})(\d+)/,'$1 $2 $3')]].map(([l,v],i,arr)=>`
+    [
+      ['Full Name',u.name||'—'],
+      ['Email',u.email||'—'],
+      ['Phone',u.phone||'—'],
+      ['Join Date',u.joinDate||'—'],
+      ['Account Name',u.bank?.name||'—'],
+      ['Bank Name',u.bank?.bankName||'—'],
+      ['Account Number',String(u.bank?.accountNumber||'—').replace(/(\d{4})(\d{4})(\d+)/,'$1 $2 $3')]
+    ].map(([l,v],i,arr)=>`
       <div style="display:flex;justify-content:space-between;padding:10px 0;${i<arr.length-1?'border-bottom:1px solid var(--border)':''}">
         <span style="color:var(--muted);font-weight:600;font-size:14px">${l}</span>
         <span style="font-weight:700;font-size:14px">${v}</span>
@@ -1114,8 +1114,7 @@ function renderContestantProfile(){
 }
 function postQuizDone(){
   if(myPlayerSession.pin){
-    // Was a live game guest
-    myPlayerSession={pin:null,nickname:null,playerId:null,score:0,currentQ:0,quizId:null};
+    myPlayerSession={pin:null,nickname:null,playerId:null,authUid:null,score:0,currentQ:0,quizId:null,sessionId:null};
     goTo('s-landing');
   } else {
     goContestant();
@@ -1127,8 +1126,8 @@ function goContestant(){goTo('s-contestant');renderContestantOverview();cTab('c-
 //  QUIZ ENGINE (solo + live player)
 // =====================================================================
 function startQuiz(qid){
-  activeQuiz=quizzes.find(q=>q.id===qid);
-  if(!activeQuiz)return;
+  activeQuiz=quizzes.find(q=>q.id===qid||q.id===String(qid));
+  if(!activeQuiz||!activeQuiz.questions||activeQuiz.questions.length===0)return notify('Quiz not available','error');
   quizState={currentQ:0,timeLeft:activeQuiz.questions[0].time,answered:null,score:0,results:[],phase:'question',isLive:false};
   document.getElementById('q-livebar').style.display='none';
   renderQuizQuestion();
@@ -1144,7 +1143,7 @@ function renderQuizQuestion(){
   document.getElementById('q-progbar').style.width=(quizState.currentQ/activeQuiz.questions.length*100)+'%';
   document.getElementById('q-qnum').textContent=`Question ${quizState.currentQ+1} of ${activeQuiz.questions.length}`;
   document.getElementById('q-qtext').textContent=q.text;
-  document.getElementById('q-pts').textContent=`⚡ Up to ${q.points} points`;
+  document.getElementById('q-pts').textContent=`⚡ Up to ${q.points||1000} points`;
   document.getElementById('q-result').style.display='none';
   document.getElementById('q-timerfill').style.width='100%';
   document.getElementById('q-timerlabel').textContent=q.time+'s';
@@ -1175,19 +1174,14 @@ function answerQ(idx){
   clearInterval(timerInterval);
   const q=activeQuiz.questions[quizState.currentQ];
   const isCorrect=idx===q.correct;
-  const timeBonus=isCorrect?Math.round((quizState.timeLeft/q.time)*q.points):0;
+  const timeBonus=isCorrect?Math.round((quizState.timeLeft/q.time)*(q.points||1000)):0;
   quizState.answered=idx;quizState.phase='result';quizState.score+=timeBonus;
   quizState.results.push({q:q.text,correct:isCorrect,earned:timeBonus,chosen:idx,correctIdx:q.correct});
-
-  // If live game — update score and report
   if(quizState.isLive){
     myPlayerSession.score=quizState.score;
     if(idx>=0)reportAnswerToHost(idx);
   }
-
-  // Score float
   if(isCorrect&&timeBonus>0)showScoreFloat(timeBonus);
-
   for(let i=0;i<q.options.length;i++){
     const btn=document.getElementById('opt-'+i);
     if(!btn)continue;
@@ -1198,13 +1192,7 @@ function answerQ(idx){
   }
   const rm=document.getElementById('q-resultmsg');
   rm.textContent=isCorrect?`✅ Correct! +${timeBonus} points`:idx===-1?`⏱️ Time's up! 0 points`:`❌ Wrong! Correct: ${q.options[q.correct]}`;
-
-  // Show live answer distribution
-  if(quizState.isLive){
-    showAnswerBars(q);
-    showMiniTop();
-  }
-
+  if(quizState.isLive){showAnswerBars(q);showMiniTop();}
   document.getElementById('q-nextbtn').textContent=quizState.currentQ+1>=activeQuiz.questions.length?'Finish Quiz 🎉':'Next Question →';
   document.getElementById('q-result').style.display='block';
 }
@@ -1248,19 +1236,16 @@ function nextQuestion(){
     renderQuizQuestion();startTimer();
   }
 }
-function finishQuiz(){
+async function finishQuiz(){
   clearInterval(timerInterval);
   const finalScore=quizState.score;
-  if(!quizState.isLive){
-    const entry={quiz:activeQuiz.name,score:finalScore,date:new Date().toISOString().split('T')[0]};
-    users=users.map(u=>u.id===currentUser.id?{...u,scores:[...u.scores,entry],totalScore:u.totalScore+finalScore}:u);
-    currentUser=users.find(u=>u.id===currentUser.id);
-    // Supabase sync
-    const sb=getSupabase();
-    if(sb&&currentUser.supabaseId){
-      sb.from('scores').insert([{user_id:currentUser.supabaseId,quiz_id:activeQuiz.id,quiz_name:activeQuiz.name,score:finalScore,played_at:new Date().toISOString()}]);
-      sb.from('profiles').update({total_score:currentUser.totalScore}).eq('id',currentUser.supabaseId);
-    }
+  const sb=getSupabase();
+  if(!quizState.isLive&&sb&&currentUser.supabaseId){
+    await sb.from('scores').insert([{user_id:currentUser.supabaseId,quiz_id:activeQuiz.id,quiz_name:activeQuiz.name,score:finalScore,played_at:new Date().toISOString()}]);
+    const newTotal=(currentUser.total_score||0)+finalScore;
+    await sb.from('profiles').update({total_score:newTotal}).eq('id',currentUser.supabaseId);
+    // Refresh live data
+    await loadAllData();
   }
   const correct=quizState.results.filter(r=>r.correct).length;
   const total=quizState.results.length;
@@ -1272,7 +1257,6 @@ function finishQuiz(){
       <div style="font-size:12px;opacity:.8">${l}</div>
       <div style="font-weight:800;font-size:20px">${v}</div>
     </div>`).join('');
-  // Final board for live games
   if(quizState.isLive){
     document.getElementById('qd-liveboard').style.display='block';
     const sorted=Object.entries(liveGame.players||{}).sort((a,b)=>b[1].score-a[1].score);
@@ -1298,7 +1282,7 @@ function finishQuiz(){
 // =====================================================================
 function renderAdminDashboard(){
   const lb=getLeaderboard(),app=getApproved(),pend=getPending(),flag=getFlagged(),all=users.filter(u=>u.role==='contestant');
-  const avg=app.length>0?Math.round(app.reduce((s,u)=>s+u.totalScore,0)/app.length):0;
+  const avg=app.length>0?Math.round(app.reduce((s,u)=>s+(u.totalScore||0),0)/app.length):0;
   document.getElementById('a-dashboard').innerHTML=`
     <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:12px;margin-bottom:18px">
       ${[['👥 Contestants',all.length,'var(--primary)'],['✅ Approved',app.length,'var(--success)'],['⏳ Pending',pend.length,'var(--warning)'],['⚠️ Flagged',flag.length,'var(--danger)'],['📖 Quizzes',quizzes.length,'var(--secondary)'],['⭐ Avg Score',avg.toLocaleString(),'#F9A825']].map(([l,v,c])=>`
@@ -1317,7 +1301,7 @@ function renderAdminDashboard(){
         <div style="position:relative;height:220px"><canvas id="ch-status"></canvas></div>
       </div>
       <div class="card">
-        <div style="font-weight:700;font-size:15px;color:var(--primary);margin-bottom:10px">📈 Avg Score / Quiz</div>
+        <div style="font-weight:700;font-size:15px;color:var(--primary);margin-bottom:10px">📈 Quiz Participation</div>
         <div style="position:relative;height:220px"><canvas id="ch-trend"></canvas></div>
       </div>
     </div>
@@ -1326,7 +1310,7 @@ function renderAdminDashboard(){
         <div style="font-weight:700;font-size:15px;color:var(--primary);margin-bottom:12px">🎯 Performance Meters</div>
         <div style="display:flex;justify-content:space-around">
           ${makeSpeedo(app.length,Math.max(all.length,1),'Approval Rate','var(--primary)')}
-          ${makeSpeedo(app.filter(u=>u.scores.length>0).length,Math.max(app.length,1),'Participation','var(--secondary)')}
+          ${makeSpeedo(app.filter(u=>u.scores&&u.scores.length>0).length,Math.max(app.length,1),'Participation','var(--secondary)')}
         </div>
       </div>
       <div class="card">
@@ -1334,7 +1318,7 @@ function renderAdminDashboard(){
         ${flag.length===0?'<div style="color:var(--muted);font-size:14px">No flagged users 🎉</div>':flag.map(u=>`
           <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid var(--border);font-size:13px">
             <div><div style="font-weight:600">${u.name}</div><div style="color:var(--muted)">${u.email}</div></div>
-            <span class="badge" style="background:#fde8e8;color:var(--danger)">Duplicate ⚠️</span>
+            <span class="badge" style="background:#fde8e8;color:var(--danger)">Flagged ⚠️</span>
           </div>`).join('')}
       </div>
     </div>`;
@@ -1342,7 +1326,7 @@ function renderAdminDashboard(){
     const top5=lb.slice(0,5);
     if(document.getElementById('ch-top5')&&window.Chart){
       destroyChart('ch-top5');
-      adminCharts['ch-top5']=new Chart(document.getElementById('ch-top5'),{type:'bar',data:{labels:top5.map(u=>u.name.split(' ')[0]),datasets:[{label:'Score',data:top5.map(u=>u.totalScore),backgroundColor:['#F9A825','#1a7a4a','#1565C0','#00897B','#6A1B9A'],borderRadius:8}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{y:{grid:{color:'#f0f0f0'}}}}});
+      adminCharts['ch-top5']=new Chart(document.getElementById('ch-top5'),{type:'bar',data:{labels:top5.map(u=>(u.name||'?').split(' ')[0]),datasets:[{label:'Score',data:top5.map(u=>u.totalScore||0),backgroundColor:['#F9A825','#1a7a4a','#1565C0','#00897B','#6A1B9A'],borderRadius:8}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{y:{grid:{color:'#f0f0f0'}}}}});
     }
     if(document.getElementById('ch-status')&&window.Chart){
       destroyChart('ch-status');
@@ -1350,7 +1334,11 @@ function renderAdminDashboard(){
     }
     if(document.getElementById('ch-trend')&&window.Chart){
       destroyChart('ch-trend');
-      adminCharts['ch-trend']=new Chart(document.getElementById('ch-trend'),{type:'line',data:{labels:quizzes.map(q=>q.date),datasets:[{label:'Avg Score',data:quizzes.map(q=>{const sc=app.flatMap(u=>u.scores.filter(s=>s.quiz===q.name).map(s=>s.score));return sc.length>0?Math.round(sc.reduce((a,b)=>a+b,0)/sc.length):0;}),borderColor:'#1a7a4a',backgroundColor:'rgba(26,122,74,.15)',fill:true,tension:.4,pointRadius:6,pointBackgroundColor:'#1a7a4a'}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{y:{grid:{color:'#f0f0f0'}}}}});
+      const qNames=quizzes.slice(0,6).map(q=>q.name.substring(0,18)+'…');
+      const qCounts=quizzes.slice(0,6).map(q=>{
+        return users.filter(u=>u.scores&&u.scores.some(s=>s.quiz===q.name)).length;
+      });
+      adminCharts['ch-trend']=new Chart(document.getElementById('ch-trend'),{type:'line',data:{labels:qNames,datasets:[{label:'Players',data:qCounts,borderColor:'#1a7a4a',backgroundColor:'rgba(26,122,74,.15)',fill:true,tension:.4,pointRadius:6,pointBackgroundColor:'#1a7a4a'}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{y:{grid:{color:'#f0f0f0'},ticks:{stepSize:1}}}}});
     }
   },100);
 }
@@ -1371,7 +1359,7 @@ function renderAdminUsers(){
         <thead>
           <tr style="background:#e8f5e9">
             <th style="padding:10px 8px;text-align:left;color:var(--primary)"><input type="checkbox" id="chk-all" onchange="toggleAllPending(this)"/></th>
-            ${['Name','Email','Phone','Join Date','Bank','Status','Action'].map(h=>`<th style="padding:10px 8px;text-align:left;font-weight:700;color:var(--primary)">${h}</th>`).join('')}
+            ${['Name','Email','Phone','Joined','Bank','Status','Action'].map(h=>`<th style="padding:10px 8px;text-align:left;font-weight:700;color:var(--primary)">${h}</th>`).join('')}
           </tr>
         </thead>
         <tbody id="usr-tbody"></tbody>
@@ -1380,37 +1368,47 @@ function renderAdminUsers(){
   renderUserRows(all);
 }
 function renderUserRows(list){
-  document.getElementById('usr-tbody').innerHTML=list.map((u,i)=>`
+  document.getElementById('usr-tbody').innerHTML=list.length===0
+    ?'<tr><td colspan="8" style="padding:20px;text-align:center;color:var(--muted)">No users found</td></tr>'
+    :list.map((u,i)=>`
     <tr style="background:${i%2===0?'#fff':'#f9fffe'};border-bottom:1px solid var(--border)">
       <td style="padding:10px 8px">${u.status==='pending'?`<input type="checkbox" class="pend-chk" value="${u.id}"/>`:'—'}</td>
-      <td style="padding:10px 8px;font-weight:600">${u.name}${u.flagged?` <span class="badge" style="background:#fde8e8;color:var(--danger);font-size:10px">⚠️ FLAG</span>`:''}</td>
-      <td style="padding:10px 8px;color:var(--muted)">${u.email}</td>
-      <td style="padding:10px 8px">${u.phone}</td>
-      <td style="padding:10px 8px;color:var(--muted)">${u.joinDate}</td>
-      <td style="padding:10px 8px;font-size:12px">${u.bank.bankName}</td>
+      <td style="padding:10px 8px;font-weight:600">${u.name||'—'}${u.flagged?` <span class="badge" style="background:#fde8e8;color:var(--danger);font-size:10px">⚠️ FLAG</span>`:''}</td>
+      <td style="padding:10px 8px;color:var(--muted)">${u.email||'—'}</td>
+      <td style="padding:10px 8px">${u.phone||'—'}</td>
+      <td style="padding:10px 8px;color:var(--muted)">${u.joinDate||'—'}</td>
+      <td style="padding:10px 8px;font-size:12px">${u.bank?.bankName||'—'}</td>
       <td style="padding:10px 8px"><span class="badge" style="background:${u.status==='approved'?'#e8f5e9':u.status==='pending'?'#fff8e1':'#fde8e8'};color:${u.status==='approved'?'var(--success)':u.status==='pending'?'var(--warning)':'var(--danger)'}">${u.status}</span></td>
-      <td style="padding:10px 8px">${u.status==='pending'?`<button class="gbtn" onclick="approveUser(${u.id})" style="padding:6px 12px;font-size:12px;background:var(--success)">Approve</button>`:''}</td>
+      <td style="padding:10px 8px">${u.status==='pending'?`<button class="gbtn" onclick="approveUser('${u.id}')" style="padding:6px 12px;font-size:12px;background:var(--success)">Approve</button>`:''}</td>
     </tr>`).join('');
 }
 function filterUsers(){
   const q=document.getElementById('usr-search').value.toLowerCase();
-  const list=users.filter(u=>u.role==='contestant'&&(u.name.toLowerCase().includes(q)||u.email.toLowerCase().includes(q)));
+  const list=users.filter(u=>u.role==='contestant'&&((u.name||'').toLowerCase().includes(q)||(u.email||'').toLowerCase().includes(q)));
   renderUserRows(list);
 }
-function approveUser(id){
-  users=users.map(u=>u.id===id?{...u,status:'approved'}:u);
+async function approveUser(id){
   const sb=getSupabase();
-  if(sb){sb.from('profiles').update({status:'approved'}).eq('id',id);}
-  notify('User approved!');renderAdminUsers();
+  if(sb){
+    const {error}=await sb.from('profiles').update({status:'approved'}).eq('id',id);
+    if(error){notify('Error approving user','error');return;}
+    await loadAllData();
+  }
+  notify('User approved! ✅');
+  renderAdminUsers();
 }
-function bulkApproveAll(){
+async function bulkApproveAll(){
   const chks=document.querySelectorAll('.pend-chk:checked');
-  const ids=chks.length>0?[...chks].map(c=>+c.value):getPending().map(u=>u.id);
+  const ids=chks.length>0?[...chks].map(c=>c.value):getPending().map(u=>u.id);
   if(ids.length===0)return notify('No pending users','warning');
-  users=users.map(u=>ids.includes(u.id)?{...u,status:'approved'}:u);
   const sb=getSupabase();
-  if(sb){sb.from('profiles').update({status:'approved'}).in('id',ids);}
-  notify(`${ids.length} user(s) approved!`);renderAdminUsers();
+  if(sb){
+    const {error}=await sb.from('profiles').update({status:'approved'}).in('id',ids);
+    if(error){notify('Error approving users','error');return;}
+    await loadAllData();
+  }
+  notify(`${ids.length} user(s) approved! ✅`);
+  renderAdminUsers();
 }
 function toggleAllPending(cb){document.querySelectorAll('.pend-chk').forEach(c=>c.checked=cb.checked);}
 
@@ -1440,16 +1438,18 @@ function renderAdminQuizzes(){
       <div id="nq-qlist" style="margin-bottom:12px;font-size:13px;color:var(--muted)"></div>
       <button class="gbtn" onclick="publishQuiz()" style="padding:13px 28px;font-size:15px;background:linear-gradient(135deg,var(--primary),var(--primaryDk))">🚀 Publish Quiz</button>
     </div>
-    <div style="font-weight:700;font-size:16px;color:var(--primary);margin-bottom:10px">Existing Quizzes</div>
-    ${quizzes.map(q=>`
+    <div style="font-weight:700;font-size:16px;color:var(--primary);margin-bottom:10px">Existing Quizzes (${quizzes.length})</div>
+    ${quizzes.length===0?'<div class="card" style="color:var(--muted)">No quizzes yet. Create your first quiz above!</div>':
+      quizzes.map(q=>`
       <div class="card" style="margin-bottom:10px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px">
         <div>
           <div style="font-weight:700;font-size:15px">${q.name}</div>
           <div style="font-size:12px;color:var(--muted);margin-top:3px">${q.questions.length} questions · ${q.date} · Host: ${q.host}</div>
         </div>
-        <div style="display:flex;gap:8px">
+        <div style="display:flex;gap:8px;align-items:center">
           <span class="badge" style="background:${q.type==='devotional'?'#e0f2f1':'#f3e5f5'};color:${q.type==='devotional'?'var(--teal)':'#6A1B9A'}">${q.type}</span>
-          <button class="gbtn" onclick="hostCreateSession(${q.id});aTab('a-livehost',document.querySelectorAll('#s-admin .tab-btn')[3])" style="padding:6px 12px;font-size:12px;background:var(--primary)">🎮 Go Live</button>
+          <button class="gbtn" onclick="deleteQuiz('${q.id}')" style="padding:6px 12px;font-size:12px;background:#C62828">🗑️ Delete</button>
+          <button class="gbtn" onclick="hostCreateSession('${q.id}');aTab('a-livehost',document.querySelectorAll('#s-admin .tab-btn')[3])" style="padding:6px 12px;font-size:12px;background:var(--primary)">🎮 Go Live</button>
         </div>
       </div>`).join('')}`;
   window._nqQuestions=[];
@@ -1473,15 +1473,25 @@ async function publishQuiz(){
   const type=document.getElementById('nq-type').value;
   if(!name)return notify('Enter quiz name','error');
   if(!window._nqQuestions||window._nqQuestions.length===0)return notify('Add at least one question','error');
-  const newQuiz={id:quizzes.length+1,name,questions:window._nqQuestions,type,status:'live',date:new Date().toISOString().split('T')[0],host:currentUser.name};
-  quizzes.push(newQuiz);
   const sb=getSupabase();
   if(sb){
-    const {data}=await sb.from('quizzes').insert([{name,type,questions:window._nqQuestions,host_id:currentUser.supabaseId,status:'live',created_at:new Date().toISOString()}]).select().single();
-    if(data)newQuiz.supabaseId=data.id;
+    const {error}=await sb.from('quizzes').insert([{name,type,questions:window._nqQuestions,host_id:currentUser.supabaseId,status:'live',created_at:new Date().toISOString()}]);
+    if(error){notify('Error saving quiz: '+error.message,'error');return;}
+    await loadAllData();
   }
   notify('Quiz published! 🎉');
   window._nqQuestions=[];
+  renderAdminQuizzes();
+}
+async function deleteQuiz(id){
+  if(!confirm('Delete this quiz? This cannot be undone.'))return;
+  const sb=getSupabase();
+  if(sb){
+    const {error}=await sb.from('quizzes').delete().eq('id',id);
+    if(error){notify('Error deleting quiz','error');return;}
+    await loadAllData();
+  }
+  notify('Quiz deleted');
   renderAdminQuizzes();
 }
 
@@ -1492,16 +1502,16 @@ function renderAdminLeaderboard(){
     <div class="card" style="overflow-x:auto">
       <table style="width:100%;border-collapse:collapse;font-size:13px">
         <thead><tr style="background:#e8f5e9">
-          ${['Rank','Name','Email','Total Score','Quizzes','Avg/Quiz','Progress'].map(h=>`<th style="padding:11px 8px;text-align:left;font-weight:700;color:var(--primary)">${h}</th>`).join('')}
+          ${['Rank','Name','Email','Total Score','Quizzes','Avg/Quiz','Status'].map(h=>`<th style="padding:11px 8px;text-align:left;font-weight:700;color:var(--primary)">${h}</th>`).join('')}
         </tr></thead>
-        <tbody>${lb.map((u,i)=>`
+        <tbody>${lb.length===0?'<tr><td colspan="7" style="padding:20px;text-align:center;color:var(--muted)">No scores yet</td></tr>':lb.map((u,i)=>`
           <tr style="background:${i%2===0?'#fff':'#f9fffe'};border-bottom:1px solid var(--border)">
-            <td style="padding:11px 8px"><div style="width:30px;height:30px;border-radius:50%;background:${i===0?'#F9A825':i===1?'#C0C0C0':i===2?'#CD7F32':'var(--border)'};display:flex;align-items:center;justify-content:center;font-weight:800;font-size:13px;color:${i<3?'var(--brown)':'var(--muted)'}">#${i+1}</div></td>
-            <td style="padding:11px 8px;font-weight:700">${u.name}</td>
-            <td style="padding:11px 8px;color:var(--muted)">${u.email}</td>
-            <td style="padding:11px 8px"><div style="font-weight:800;color:var(--primary);font-size:16px">${u.totalScore.toLocaleString()}</div><div style="height:5px;background:#e8f5e9;border-radius:3px;margin-top:4px;width:120px"><div style="width:${Math.round((u.totalScore/(lb[0]?.totalScore||1))*100)}%;height:100%;background:${i===0?'#F9A825':'var(--primary)'};border-radius:3px"></div></div></td>
-            <td style="padding:11px 8px">${u.scores.length}</td>
-            <td style="padding:11px 8px">${u.scores.length>0?Math.round(u.totalScore/u.scores.length).toLocaleString():0}</td>
+            <td style="padding:11px 8px"><div style="width:30px;height:30px;border-radius:50%;background:${i===0?'#F9A825':i===1?'#C0C0C0':i===2?'#CD7F32':'var(--border)'};display:flex;align-items:center;justify-content:center;font-weight:800;font-size:13px;color:${i<3?'var(--brown)':'var(--muted)'};">#${i+1}</div></td>
+            <td style="padding:11px 8px;font-weight:700">${u.name||'—'}</td>
+            <td style="padding:11px 8px;color:var(--muted)">${u.email||'—'}</td>
+            <td style="padding:11px 8px"><div style="font-weight:800;color:var(--primary);font-size:16px">${(u.totalScore||0).toLocaleString()}</div><div style="height:5px;background:#e8f5e9;border-radius:3px;margin-top:4px;width:120px"><div style="width:${Math.round(((u.totalScore||0)/(lb[0]?.totalScore||1))*100)}%;height:100%;background:${i===0?'#F9A825':'var(--primary)'};border-radius:3px"></div></div></td>
+            <td style="padding:11px 8px">${(u.scores||[]).length}</td>
+            <td style="padding:11px 8px">${(u.scores||[]).length>0?Math.round((u.totalScore||0)/(u.scores||[]).length).toLocaleString():0}</td>
             <td style="padding:11px 8px"><span class="badge" style="background:#e8f5e9;color:var(--success)">Active</span></td>
           </tr>`).join('')}
         </tbody>
@@ -1520,19 +1530,20 @@ function renderAdminReports(){
       <div class="card" style="text-align:center">
         <div style="font-weight:700;font-size:15px;color:var(--primary);margin-bottom:10px">📊 Engagement Meters</div>
         <div style="display:flex;justify-content:space-around">
-          ${makeSpeedo(app.filter(u=>u.totalScore>1500).length,Math.max(app.length,1),'Top Scorers','#F9A825')}
-          ${makeSpeedo(app.filter(u=>u.scores.length>1).length,Math.max(app.length,1),'Repeat Players','var(--primary)')}
+          ${makeSpeedo(app.filter(u=>(u.totalScore||0)>1500).length,Math.max(app.length,1),'Top Scorers','#F9A825')}
+          ${makeSpeedo(app.filter(u=>(u.scores||[]).length>1).length,Math.max(app.length,1),'Repeat Players','var(--primary)')}
         </div>
       </div>
       <div class="card">
-        <div style="font-weight:700;font-size:15px;color:var(--primary);margin-bottom:10px">📈 Quiz Avg Scores</div>
-        ${quizzes.map(q=>{const sc=app.flatMap(u=>u.scores.filter(s=>s.quiz===q.name).map(s=>s.score));const avg=sc.length>0?Math.round(sc.reduce((a,b)=>a+b,0)/sc.length):0;return`
-          <div style="margin-bottom:12px">
+        <div style="font-weight:700;font-size:15px;color:var(--primary);margin-bottom:10px">📈 Quiz Participation</div>
+        ${quizzes.length===0?'<div style="color:var(--muted);font-size:13px">No quizzes yet</div>':quizzes.map(q=>{
+          const playCount=app.filter(u=>(u.scores||[]).some(s=>s.quiz===q.name)).length;
+          return`<div style="margin-bottom:12px">
             <div style="display:flex;justify-content:space-between;font-size:13px;margin-bottom:4px">
-              <span style="font-weight:600">${q.name.substring(0,26)}…</span><span style="color:var(--primary);font-weight:700">${avg}</span>
+              <span style="font-weight:600">${q.name.substring(0,28)}</span><span style="color:var(--primary);font-weight:700">${playCount} players</span>
             </div>
-            <div style="height:7px;background:#e8f5e9;border-radius:4px"><div style="width:${Math.round(avg/1500*100)}%;height:100%;background:var(--secondary);border-radius:4px"></div></div>
-          </div>`}).join('')}
+            <div style="height:7px;background:#e8f5e9;border-radius:4px"><div style="width:${Math.max(app.length,1)>0?Math.round(playCount/app.length*100):0}%;height:100%;background:var(--secondary);border-radius:4px"></div></div>
+          </div>`;}).join('')}
       </div>
     </div>
     <div class="card" style="overflow-x:auto">
@@ -1541,15 +1552,15 @@ function renderAdminReports(){
         <thead><tr style="background:#e8f5e9">
           ${['Rank','Name','Email','Total Score','Quizzes','Avg/Quiz','Joined'].map(h=>`<th style="padding:10px 8px;text-align:left;font-weight:700;color:var(--primary)">${h}</th>`).join('')}
         </tr></thead>
-        <tbody>${lb.map((u,i)=>`
+        <tbody>${lb.length===0?'<tr><td colspan="7" style="padding:20px;text-align:center;color:var(--muted)">No data yet</td></tr>':lb.map((u,i)=>`
           <tr style="background:${i%2===0?'#fff':'#f9fffe'};border-bottom:1px solid var(--border)">
-            <td style="padding:10px 8px;font-weight:800;color:${i===0?'#F9A825':'var(--primary)'}">#${i+1}</td>
-            <td style="padding:10px 8px;font-weight:600">${u.name}</td>
-            <td style="padding:10px 8px;color:var(--muted)">${u.email}</td>
-            <td style="padding:10px 8px;font-weight:700;color:var(--primary)">${u.totalScore.toLocaleString()}</td>
-            <td style="padding:10px 8px">${u.scores.length}</td>
-            <td style="padding:10px 8px">${u.scores.length>0?Math.round(u.totalScore/u.scores.length).toLocaleString():0}</td>
-            <td style="padding:10px 8px;color:var(--muted)">${u.joinDate}</td>
+            <td style="padding:10px 8px;font-weight:800;color:${i===0?'#F9A825':'var(--primary)'};">#${i+1}</td>
+            <td style="padding:10px 8px;font-weight:600">${u.name||'—'}</td>
+            <td style="padding:10px 8px;color:var(--muted)">${u.email||'—'}</td>
+            <td style="padding:10px 8px;font-weight:700;color:var(--primary)">${(u.totalScore||0).toLocaleString()}</td>
+            <td style="padding:10px 8px">${(u.scores||[]).length}</td>
+            <td style="padding:10px 8px">${(u.scores||[]).length>0?Math.round((u.totalScore||0)/(u.scores||[]).length).toLocaleString():0}</td>
+            <td style="padding:10px 8px;color:var(--muted)">${u.joinDate||'—'}</td>
           </tr>`).join('')}
         </tbody>
       </table>
@@ -1576,14 +1587,14 @@ function renderAdminBank(){
         <thead><tr style="background:#e8f5e9">
           ${['Rank','Name','Account Name','Bank','Account No.','Score'].map(h=>`<th style="padding:10px 8px;text-align:left;font-weight:700;color:var(--primary)">${h}</th>`).join('')}
         </tr></thead>
-        <tbody>${lb.slice(0,5).map((u,i)=>`
+        <tbody>${lb.length===0?'<tr><td colspan="6" style="padding:20px;text-align:center;color:var(--muted)">No contestants yet</td></tr>':lb.slice(0,5).map((u,i)=>`
           <tr style="background:${i%2===0?'#fff':'#f9fffe'};border-bottom:1px solid var(--border)">
-            <td style="padding:10px 8px;font-weight:800;color:${i===0?'#F9A825':'var(--primary)'}">#${i+1}</td>
-            <td style="padding:10px 8px;font-weight:600">${u.name}</td>
-            <td style="padding:10px 8px">${u.bank.name}</td>
-            <td style="padding:10px 8px">${u.bank.bankName}</td>
-            <td style="padding:10px 8px;font-family:monospace">${u.bank.accountNumber}</td>
-            <td style="padding:10px 8px;font-weight:700;color:var(--primary)">${u.totalScore.toLocaleString()}</td>
+            <td style="padding:10px 8px;font-weight:800;color:${i===0?'#F9A825':'var(--primary)'};">#${i+1}</td>
+            <td style="padding:10px 8px;font-weight:600">${u.name||'—'}</td>
+            <td style="padding:10px 8px">${u.bank?.name||'—'}</td>
+            <td style="padding:10px 8px">${u.bank?.bankName||'—'}</td>
+            <td style="padding:10px 8px;font-family:monospace">${u.bank?.accountNumber||'—'}</td>
+            <td style="padding:10px 8px;font-weight:700;color:var(--primary)">${(u.totalScore||0).toLocaleString()}</td>
           </tr>`).join('')}
         </tbody>
       </table>
@@ -1602,12 +1613,15 @@ function exportCSV(data,filename){
   notify('CSV downloaded! ✓');
 }
 function exportPerformance(){
-  exportCSV(getLeaderboard().map((u,i)=>({Rank:i+1,Name:u.name,Email:u.email,Phone:u.phone,TotalScore:u.totalScore,QuizzesTaken:u.scores.length,AvgScore:u.scores.length>0?Math.round(u.totalScore/u.scores.length):0,JoinDate:u.joinDate,BankName:u.bank.bankName})),'lmtw_performance_report.csv');
+  const lb=getLeaderboard();
+  if(lb.length===0)return notify('No data to export','warning');
+  exportCSV(lb.map((u,i)=>({Rank:i+1,Name:u.name||'',Email:u.email||'',Phone:u.phone||'',TotalScore:u.totalScore||0,QuizzesTaken:(u.scores||[]).length,AvgScore:(u.scores||[]).length>0?Math.round((u.totalScore||0)/(u.scores||[]).length):0,JoinDate:u.joinDate||'',BankName:u.bank?.bankName||''})),'lmtw_performance_report.csv');
 }
 function exportBank(n){
   const lb=getLeaderboard();
+  if(lb.length===0)return notify('No data to export','warning');
   const target=n?lb.slice(0,n):lb;
-  exportCSV(target.map((u,i)=>({Rank:i+1,AccountName:u.bank.name,BankName:u.bank.bankName,AccountNumber:u.bank.accountNumber,ContestantName:u.name,Email:u.email,TotalScore:u.totalScore})),`lmtw_bank_details_top${n||'all'}.csv`);
+  exportCSV(target.map((u,i)=>({Rank:i+1,AccountName:u.bank?.name||'',BankName:u.bank?.bankName||'',AccountNumber:u.bank?.accountNumber||'',ContestantName:u.name||'',Email:u.email||'',TotalScore:u.totalScore||0})),`lmtw_bank_details_top${n||'all'}.csv`);
 }
 
 // enter key on login
