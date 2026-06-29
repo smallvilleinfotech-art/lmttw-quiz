@@ -1,0 +1,1617 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>Lead Me To The Waters</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+<!-- Supabase CDN -->
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&family=Fredoka+One&display=swap');
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Nunito',system-ui,sans-serif;background:linear-gradient(135deg,#e8f5e9 0%,#e3f2fd 50%,#f9fbe7 100%);min-height:100vh;color:#1a2e1a}
+:root{
+  --primary:#1a7a4a;--primaryDk:#0f5233;--primaryLt:#2ea865;
+  --secondary:#1565C0;--gold:#F9A825;--brown:#5D4037;
+  --teal:#00897B;--danger:#C62828;--warning:#F57F17;
+  --success:#2e7d32;--muted:#4a6a4a;--border:#c8e6c9;--bg:#f0faf4
+}
+input,select,textarea{font-family:inherit;outline:none}
+button{font-family:inherit;cursor:pointer}
+.screen{display:none}.screen.active{display:block}
+.card{background:#fff;border-radius:16px;padding:20px;box-shadow:0 4px 24px rgba(26,122,74,.08);border:1px solid var(--border)}
+.gbtn{border:none;border-radius:12px;color:#fff;font-weight:700;letter-spacing:.5px;transition:all .2s;cursor:pointer}
+.gbtn:hover{filter:brightness(1.1);transform:translateY(-1px)}
+.gbtn:active{transform:scale(.98)}
+.badge{border-radius:20px;padding:3px 10px;font-size:12px;font-weight:700}
+.tab-btn{border:none;padding:10px 18px;font-weight:700;font-size:13px;cursor:pointer;transition:all .2s;white-space:nowrap;border-bottom:3px solid transparent}
+.tab-btn.active{background:var(--primary);color:#fff;border-bottom-color:var(--gold)}
+.tab-btn:not(.active){background:transparent;color:rgba(255,255,255,.6)}
+input[type=text],input[type=email],input[type=password],input[type=number],input[type=tel],select{padding:10px 14px;border-radius:10px;border:1.5px solid var(--border);font-size:14px;width:100%;transition:border .2s}
+input:focus,select:focus{border-color:var(--primary)}
+.notif{position:fixed;top:20px;left:50%;transform:translateX(-50%);z-index:9999;padding:12px 28px;border-radius:30px;font-weight:700;font-size:14px;box-shadow:0 6px 30px rgba(0,0,0,.2);min-width:260px;text-align:center;color:#fff;pointer-events:none;opacity:0;transition:opacity .3s}
+.notif.show{opacity:1}
+.opt-btn{border:none;border-radius:16px;padding:16px 14px;color:#fff;font-size:15px;font-weight:700;cursor:pointer;text-align:left;display:flex;align-items:center;gap:10px;transition:all .3s;width:100%}
+.opt-btn:hover:not(:disabled){filter:brightness(1.12);transform:scale(1.02)}
+tr:hover{background:#f0fff4!important}
+::-webkit-scrollbar{width:6px;height:6px}
+::-webkit-scrollbar-track{background:#f0f0f0;border-radius:10px}
+::-webkit-scrollbar-thumb{background:var(--primary);border-radius:10px}
+
+/* ===== KAHOOT PIN STYLES ===== */
+#s-pinentry{background:linear-gradient(135deg,#0f5233 0%,#1565C0 100%);min-height:100vh}
+#s-gamelobby{background:linear-gradient(135deg,#0f5233 0%,#1a7a4a 100%);min-height:100vh;color:#fff}
+#s-livehost{background:#0a1a0f;min-height:100vh;color:#fff}
+
+.pin-display{
+  font-family:'Fredoka One',cursive;
+  font-size:72px;letter-spacing:12px;color:#F9A825;
+  text-shadow:0 0 30px rgba(249,168,37,.4);
+  background:rgba(255,255,255,.07);
+  border-radius:20px;padding:20px 40px;display:inline-block;
+  border:2px solid rgba(249,168,37,.3);
+}
+.player-chip{
+  background:rgba(255,255,255,.12);border-radius:30px;
+  padding:8px 18px;display:inline-flex;align-items:center;gap:8px;
+  font-weight:700;font-size:14px;color:#fff;
+  animation:popIn .3s cubic-bezier(.175,.885,.32,1.275);
+  border:1px solid rgba(255,255,255,.2);
+}
+@keyframes popIn{from{transform:scale(0);opacity:0}to{transform:scale(1);opacity:1}}
+.lb-row{
+  display:flex;align-items:center;gap:12px;padding:10px 16px;
+  background:rgba(255,255,255,.1);border-radius:12px;margin-bottom:8px;
+  transition:all .4s;
+}
+.lb-row.first{background:linear-gradient(135deg,rgba(249,168,37,.3),rgba(249,168,37,.15));border:1px solid rgba(249,168,37,.4)}
+.lb-row.second{background:linear-gradient(135deg,rgba(192,192,192,.25),rgba(192,192,192,.1))}
+.lb-row.third{background:linear-gradient(135deg,rgba(205,127,50,.25),rgba(205,127,50,.1))}
+.pulse{animation:pulse 1.5s infinite}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.5}}
+
+/* Live answer bars */
+.answer-bar{
+  height:12px;border-radius:6px;transition:width .6s cubic-bezier(.4,0,.2,1);
+  min-width:4px;
+}
+
+/* Score pop animation */
+@keyframes scoreFloat{
+  0%{transform:translateY(0);opacity:1}
+  100%{transform:translateY(-60px);opacity:0}
+}
+.score-float{
+  position:fixed;font-size:28px;font-weight:900;color:#F9A825;
+  pointer-events:none;animation:scoreFloat 1.2s ease-out forwards;
+  z-index:9998;text-shadow:0 2px 10px rgba(0,0,0,.3);
+}
+</style>
+</head>
+<body>
+<div class="notif" id="notif"></div>
+
+<!-- ==================== LANDING ==================== -->
+<div class="screen active" id="s-landing">
+  <div style="max-width:460px;margin:0 auto;padding:40px 20px;text-align:center">
+    <div style="font-size:64px;margin-bottom:10px">💧</div>
+    <div style="font-family:'Fredoka One',cursive;font-size:34px;color:var(--primary);line-height:1.1">LEAD ME TO</div>
+    <div style="font-family:'Fredoka One',cursive;font-size:34px;color:var(--secondary);line-height:1.1">THE WATERS</div>
+    <div style="font-size:12px;color:var(--muted);letter-spacing:3px;text-transform:uppercase;margin-top:4px;margin-bottom:20px">A Bible Community Quiz Platform</div>
+
+    <!-- PIN JOIN BOX -->
+    <div class="card" style="margin-bottom:14px;background:linear-gradient(135deg,#0f5233,#1565C0);border:none">
+      <div style="font-weight:800;font-size:15px;color:#fff;margin-bottom:10px">🎮 Have a Game PIN?</div>
+      <div style="display:flex;gap:8px">
+        <input type="text" id="pin-input" placeholder="Enter PIN..." maxlength="6"
+          style="font-size:22px;font-weight:800;letter-spacing:8px;text-align:center;background:rgba(255,255,255,.15);border:2px solid rgba(255,255,255,.3);color:#fff;flex:1"
+          oninput="this.value=this.value.replace(/\D/g,'').toUpperCase()"
+          onkeydown="if(event.key==='Enter')joinByPin()"/>
+        <button class="gbtn" onclick="joinByPin()" style="padding:12px 20px;font-size:15px;background:#F9A825;color:#5D4037;white-space:nowrap">Join →</button>
+      </div>
+      <div style="font-size:11px;color:rgba(255,255,255,.6);margin-top:6px">Enter the 6-digit PIN shared by your host</div>
+    </div>
+
+    <div class="card" style="text-align:left">
+      <div style="font-weight:800;font-size:18px;color:var(--primary);margin-bottom:14px">🙏 Sign In</div>
+      <div style="margin-bottom:10px"><input type="email" id="li-email" placeholder="Email address"/></div>
+      <div style="margin-bottom:16px"><input type="password" id="li-pass" placeholder="Password"/></div>
+      <button class="gbtn" onclick="doLogin()" style="width:100%;padding:14px;font-size:16px;background:linear-gradient(135deg,var(--primary),var(--primaryDk))">Sign In →</button>
+      <div style="text-align:center;margin-top:14px;font-size:13px;color:var(--muted)">New here? <span onclick="goTo('s-register')" style="color:var(--primary);cursor:pointer;font-weight:700">Register as Contestant</span></div>
+    </div>
+  </div>
+</div>
+
+<!-- ==================== REGISTER ==================== -->
+<div class="screen" id="s-register">
+  <div style="max-width:520px;margin:0 auto;padding:24px 16px">
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:18px">
+      <span style="font-size:30px">💧</span>
+      <div>
+        <div style="font-family:'Fredoka One',cursive;font-size:18px;color:var(--primary)">LEAD ME TO THE WATERS</div>
+        <div style="font-size:11px;color:var(--muted);letter-spacing:2px">A BIBLE COMMUNITY</div>
+      </div>
+    </div>
+    <div class="card">
+      <div style="font-weight:800;font-size:20px;color:var(--primary);margin-bottom:4px">Register as Contestant</div>
+      <div style="font-size:13px;color:var(--muted);margin-bottom:16px">Join the community and compete in Bible quizzes</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px">
+        <div><label style="font-size:12px;font-weight:600;color:var(--muted)">Full Name</label><input type="text" id="rg-name" style="margin-top:4px"/></div>
+        <div><label style="font-size:12px;font-weight:600;color:var(--muted)">Email</label><input type="email" id="rg-email" style="margin-top:4px"/></div>
+        <div><label style="font-size:12px;font-weight:600;color:var(--muted)">Password</label><input type="password" id="rg-pass" style="margin-top:4px"/></div>
+        <div><label style="font-size:12px;font-weight:600;color:var(--muted)">Phone</label><input type="tel" id="rg-phone" style="margin-top:4px"/></div>
+      </div>
+      <div style="border-top:1px solid var(--border);padding-top:14px;margin-bottom:10px;font-weight:700;font-size:13px;color:#5D4037">💳 Bank Account Details (Prize Disbursement)</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:16px">
+        <div><label style="font-size:12px;font-weight:600;color:var(--muted)">Account Name</label><input type="text" id="rg-bname" style="margin-top:4px"/></div>
+        <div><label style="font-size:12px;font-weight:600;color:var(--muted)">Bank Name</label><input type="text" id="rg-bank" style="margin-top:4px"/></div>
+        <div style="grid-column:1/-1"><label style="font-size:12px;font-weight:600;color:var(--muted)">Account Number</label><input type="text" id="rg-acct" style="margin-top:4px"/></div>
+      </div>
+      <div style="display:flex;gap:10px">
+        <button class="gbtn" onclick="goTo('s-landing')" style="flex:1;padding:12px;background:#888">← Back</button>
+        <button class="gbtn" onclick="doRegister()" style="flex:2;padding:12px;font-size:15px;background:linear-gradient(135deg,var(--primary),var(--primaryDk))">Register Now 🙏</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ==================== PIN ENTRY (name entry for pin join) ==================== -->
+<div class="screen" id="s-pinentry">
+  <div style="max-width:440px;margin:0 auto;padding:40px 20px;text-align:center">
+    <div style="font-size:56px;margin-bottom:10px">🎮</div>
+    <div style="font-family:'Fredoka One',cursive;font-size:30px;color:#fff;margin-bottom:6px">You're joining!</div>
+    <div id="pj-quizname" style="font-size:14px;color:rgba(255,255,255,.7);margin-bottom:28px"></div>
+    <div class="card" style="background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.2)">
+      <div style="font-size:14px;color:rgba(255,255,255,.8);font-weight:600;margin-bottom:10px">Enter your display name</div>
+      <input type="text" id="pj-nickname" placeholder="Your name..." maxlength="20"
+        style="font-size:18px;font-weight:700;text-align:center;background:rgba(255,255,255,.15);border:2px solid rgba(255,255,255,.3);color:#fff;margin-bottom:14px"
+        onkeydown="if(event.key==='Enter')confirmJoin()"/>
+      <button class="gbtn" onclick="confirmJoin()" style="width:100%;padding:14px;font-size:16px;background:#F9A825;color:#5D4037">Let's Go! 🚀</button>
+      <button class="gbtn" onclick="goTo('s-landing')" style="width:100%;padding:10px;font-size:14px;background:rgba(255,255,255,.15);margin-top:8px">← Back</button>
+    </div>
+  </div>
+</div>
+
+<!-- ==================== GAME LOBBY (waiting room) ==================== -->
+<div class="screen" id="s-gamelobby">
+  <div style="max-width:520px;margin:0 auto;padding:30px 20px;text-align:center">
+    <div style="font-size:13px;color:rgba(255,255,255,.6);letter-spacing:2px;text-transform:uppercase;margin-bottom:6px">Get Ready!</div>
+    <div id="gl-quizname" style="font-family:'Fredoka One',cursive;font-size:26px;color:#F9A825;margin-bottom:20px"></div>
+    <div id="gl-pin" style="margin-bottom:20px">
+      <div style="font-size:13px;color:rgba(255,255,255,.6);margin-bottom:8px">Game PIN</div>
+      <div class="pin-display" id="gl-pinnum">------</div>
+    </div>
+    <div class="card" style="background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.15);margin-bottom:16px">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+        <div style="color:rgba(255,255,255,.7);font-size:13px">Players joined</div>
+        <div id="gl-count" style="font-family:'Fredoka One',cursive;font-size:28px;color:#F9A825">0</div>
+      </div>
+      <div id="gl-players" style="display:flex;flex-wrap:wrap;gap:8px;min-height:50px"></div>
+    </div>
+    <div id="gl-status" style="font-size:13px;color:rgba(255,255,255,.5)" class="pulse">Waiting for host to start...</div>
+  </div>
+</div>
+
+<!-- ==================== QUIZ SCREEN (solo + live) ==================== -->
+<div class="screen" id="s-quiz" style="background:linear-gradient(135deg,#0f5233,#1565C0);min-height:100vh;color:#fff">
+  <div style="padding:14px 20px;display:flex;justify-content:space-between;align-items:center">
+    <div style="font-weight:800;font-size:15px" id="q-quizname">Quiz Name</div>
+    <div style="display:flex;gap:10px">
+      <div id="q-score" style="background:rgba(255,255,255,.15);border-radius:20px;padding:6px 16px;font-weight:700;font-size:14px">⭐ 0</div>
+      <div id="q-progress" style="background:rgba(255,255,255,.15);border-radius:20px;padding:6px 16px;font-weight:700;font-size:14px">1/5</div>
+    </div>
+  </div>
+  <div style="height:5px;background:rgba(255,255,255,.2)"><div id="q-progbar" style="height:100%;background:#F9A825;transition:width .5s;width:0%"></div></div>
+
+  <!-- Live player count bar (only visible during live games) -->
+  <div id="q-livebar" style="display:none;background:rgba(0,0,0,.3);padding:8px 20px;display:none;align-items:center;gap:12px">
+    <span style="font-size:12px;color:rgba(255,255,255,.6)">👥 Live:</span>
+    <span id="q-livecount" style="font-weight:700;color:#F9A825;font-size:14px">0 players</span>
+    <div style="flex:1"></div>
+    <span id="q-liveanswered" style="font-size:12px;color:rgba(255,255,255,.5)">0 answered</span>
+  </div>
+
+  <div style="max-width:680px;margin:0 auto;padding:16px">
+    <div id="q-timerbar" style="height:14px;background:rgba(255,255,255,.2);border-radius:7px;margin-bottom:16px;overflow:hidden;position:relative">
+      <div id="q-timerfill" style="height:100%;background:var(--primary);border-radius:7px;transition:width 1s linear;width:100%"></div>
+      <div id="q-timerlabel" style="position:absolute;right:8px;top:0;height:100%;display:flex;align-items:center;font-size:12px;font-weight:700;color:#fff">20s</div>
+    </div>
+    <div style="background:rgba(255,255,255,.12);border-radius:20px;padding:22px 24px;margin-bottom:20px;text-align:center;border:1px solid rgba(255,255,255,.2)">
+      <div id="q-qnum" style="font-size:13px;color:rgba(255,255,255,.7);margin-bottom:8px">Question 1 of 5</div>
+      <div id="q-qtext" style="font-size:21px;font-weight:700;line-height:1.4">Question text</div>
+      <div id="q-pts" style="font-size:12px;color:#F9A825;margin-top:8px">⚡ Up to 1000 points</div>
+    </div>
+    <div id="q-opts" style="display:grid;grid-template-columns:1fr 1fr;gap:12px"></div>
+    <div id="q-result" style="display:none;margin-top:18px;text-align:center">
+      <div id="q-resultmsg" style="background:rgba(255,255,255,.15);border-radius:14px;padding:14px;margin-bottom:14px;font-size:16px;font-weight:700"></div>
+      <!-- Live answer distribution bars -->
+      <div id="q-answerbars" style="display:none;background:rgba(255,255,255,.08);border-radius:14px;padding:14px;margin-bottom:14px;text-align:left"></div>
+      <!-- Live mini-leaderboard after each question -->
+      <div id="q-minitop" style="display:none;background:rgba(255,255,255,.08);border-radius:14px;padding:14px;margin-bottom:14px"></div>
+      <button class="gbtn" onclick="nextQuestion()" id="q-nextbtn" style="padding:14px 36px;font-size:16px;background:linear-gradient(135deg,#F9A825,#e65100);color:#fff">Next →</button>
+    </div>
+  </div>
+</div>
+
+<!-- ==================== QUIZ DONE ==================== -->
+<div class="screen" id="s-quizdone" style="background:linear-gradient(135deg,#0f5233,#1565C0);min-height:100vh;color:#fff;display:none">
+  <div style="max-width:500px;margin:0 auto;padding:40px 20px;text-align:center">
+    <div id="qd-icon" style="font-size:72px;margin-bottom:14px">🏆</div>
+    <div style="font-family:'Fredoka One',cursive;font-size:30px;margin-bottom:8px">Quiz Complete!</div>
+    <div id="qd-score" style="font-size:52px;font-weight:800;color:#F9A825;margin-bottom:6px">0</div>
+    <div style="font-size:15px;color:rgba(255,255,255,.8);margin-bottom:22px">points earned</div>
+    <div id="qd-stats" style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;margin-bottom:22px"></div>
+    <!-- Live final leaderboard -->
+    <div id="qd-liveboard" style="display:none;margin-bottom:22px">
+      <div style="font-family:'Fredoka One',cursive;font-size:20px;margin-bottom:12px;color:#F9A825">🏆 Final Standings</div>
+      <div id="qd-liveboardinner"></div>
+    </div>
+    <div id="qd-breakdown" style="margin-bottom:22px"></div>
+    <button class="gbtn" onclick="postQuizDone()" style="padding:14px 40px;font-size:16px;background:linear-gradient(135deg,#F9A825,#e65100);color:#fff">Back to Dashboard</button>
+  </div>
+</div>
+
+<!-- ==================== CONTESTANT DASHBOARD ==================== -->
+<div class="screen" id="s-contestant">
+  <div style="background:linear-gradient(135deg,var(--primary),var(--primaryDk));padding:14px 20px;display:flex;align-items:center;justify-content:space-between">
+    <div style="display:flex;align-items:center;gap:8px">
+      <span style="font-size:24px">💧</span>
+      <div>
+        <div style="font-family:'Fredoka One',cursive;font-size:14px;color:#fff">LEAD ME TO THE WATERS</div>
+        <div style="font-size:10px;color:#a5d6a7;letter-spacing:2px">BIBLE COMMUNITY</div>
+      </div>
+    </div>
+    <div style="display:flex;align-items:center;gap:10px">
+      <div id="c-username" style="color:#fff;font-weight:700;font-size:13px"></div>
+      <button class="gbtn" onclick="doLogout()" style="padding:7px 14px;font-size:12px;background:rgba(255,255,255,.2)">Logout</button>
+    </div>
+  </div>
+  <div style="background:var(--primaryDk);display:flex;overflow-x:auto;gap:0">
+    <button class="tab-btn active" onclick="cTab('c-overview',this)">🏠 Overview</button>
+    <button class="tab-btn" onclick="cTab('c-quizzes',this)">🎯 Quizzes</button>
+    <button class="tab-btn" onclick="cTab('c-leaderboard',this)">🏆 Leaderboard</button>
+    <button class="tab-btn" onclick="cTab('c-profile',this)">👤 Profile</button>
+  </div>
+  <div style="max-width:900px;margin:0 auto;padding:16px">
+    <div id="c-overview">
+      <div id="c-stats" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:12px;margin-bottom:16px"></div>
+      <div class="card" style="margin-bottom:14px">
+        <div style="font-weight:700;font-size:15px;color:var(--primary);margin-bottom:12px">📊 Performance Overview</div>
+        <div id="c-speedos" style="display:flex;justify-content:space-around;flex-wrap:wrap;gap:16px"></div>
+      </div>
+      <div class="card" id="c-recentscores"></div>
+    </div>
+    <div id="c-quizzes" style="display:none">
+      <div style="font-weight:800;font-size:18px;color:var(--primary);margin-bottom:14px">Available Quizzes</div>
+      <div id="c-quizlist"></div>
+    </div>
+    <div id="c-leaderboard" style="display:none">
+      <div class="card">
+        <div style="font-weight:700;font-size:18px;color:var(--primary);margin-bottom:14px">🏆 Global Leaderboard</div>
+        <div id="c-lbody"></div>
+      </div>
+    </div>
+    <div id="c-profile" style="display:none">
+      <div class="card" id="c-profilebody"></div>
+    </div>
+  </div>
+</div>
+
+<!-- ==================== ADMIN PANEL ==================== -->
+<div class="screen" id="s-admin">
+  <div style="background:linear-gradient(135deg,#0a3d2b,#0f5233);padding:14px 20px;display:flex;align-items:center;justify-content:space-between">
+    <div style="display:flex;align-items:center;gap:8px">
+      <span style="font-size:26px">💧</span>
+      <div>
+        <div style="font-family:'Fredoka One',cursive;font-size:14px;color:#fff">LEAD ME TO THE WATERS</div>
+        <div style="font-size:10px;color:#a5d6a7;letter-spacing:2px">ADMIN CONTROL PANEL</div>
+      </div>
+    </div>
+    <div style="display:flex;gap:10px;align-items:center">
+      <span style="background:#F9A825;color:#5D4037;border-radius:20px;padding:4px 12px;font-size:12px;font-weight:700">⚙️ Admin</span>
+      <button class="gbtn" onclick="doLogout()" style="padding:7px 14px;font-size:12px;background:rgba(255,255,255,.2)">Logout</button>
+    </div>
+  </div>
+  <div style="background:#0f5233;display:flex;overflow-x:auto">
+    <button class="tab-btn active" onclick="aTab('a-dashboard',this)">🏠 Dashboard</button>
+    <button class="tab-btn" onclick="aTab('a-users',this)">👥 Users</button>
+    <button class="tab-btn" onclick="aTab('a-quizzes',this)">🎯 Quizzes</button>
+    <button class="tab-btn" onclick="aTab('a-livehost',this)">🎮 Live Host</button>
+    <button class="tab-btn" onclick="aTab('a-leaderboard',this)">🏆 Leaderboard</button>
+    <button class="tab-btn" onclick="aTab('a-reports',this)">📊 Reports</button>
+    <button class="tab-btn" onclick="aTab('a-bank',this)">💳 Bank Export</button>
+  </div>
+  <div style="max-width:1100px;margin:0 auto;padding:16px">
+    <div id="a-dashboard"></div>
+    <div id="a-users" style="display:none"></div>
+    <div id="a-quizzes" style="display:none"></div>
+    <div id="a-livehost" style="display:none"></div>
+    <div id="a-leaderboard" style="display:none"></div>
+    <div id="a-reports" style="display:none"></div>
+    <div id="a-bank" style="display:none"></div>
+  </div>
+</div>
+
+<!-- ==================== LIVE HOST SCREEN ==================== -->
+<div class="screen" id="s-livehost">
+  <div style="padding:14px 20px;display:flex;justify-content:space-between;align-items:center;background:rgba(255,255,255,.05);border-bottom:1px solid rgba(255,255,255,.1)">
+    <div style="font-family:'Fredoka One',cursive;font-size:16px;color:#F9A825" id="lh-quizname">Live Quiz</div>
+    <div style="display:flex;gap:10px;align-items:center">
+      <div id="lh-pin" style="background:rgba(249,168,37,.2);border:1px solid rgba(249,168,37,.4);border-radius:20px;padding:6px 16px;font-weight:800;font-size:14px;color:#F9A825;letter-spacing:4px"></div>
+      <div id="lh-playercount" style="background:rgba(255,255,255,.1);border-radius:20px;padding:6px 14px;font-weight:700;font-size:13px;color:#fff">👥 0</div>
+    </div>
+  </div>
+  <div style="max-width:900px;margin:0 auto;padding:20px">
+    <!-- Pre-start lobby -->
+    <div id="lh-lobby">
+      <div style="text-align:center;margin-bottom:24px">
+        <div style="font-size:12px;color:rgba(255,255,255,.5);letter-spacing:3px;text-transform:uppercase;margin-bottom:6px">Share this PIN with players</div>
+        <div class="pin-display" id="lh-pinbig">------</div>
+        <div style="margin-top:10px;font-size:13px;color:rgba(255,255,255,.5)">Players join at <span style="color:#F9A825;font-weight:700">leadmewaters.app</span> or this page</div>
+      </div>
+      <div class="card" style="background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.12);margin-bottom:20px">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">
+          <div style="font-weight:700;font-size:15px;color:rgba(255,255,255,.8)">Players in lobby</div>
+          <div id="lh-lobbycount" style="font-family:'Fredoka One',cursive;font-size:32px;color:#F9A825">0</div>
+        </div>
+        <div id="lh-lobbyplayers" style="display:flex;flex-wrap:wrap;gap:8px;min-height:60px"></div>
+      </div>
+      <div style="text-align:center">
+        <button class="gbtn" id="lh-startbtn" onclick="hostStartGame()" style="padding:16px 48px;font-size:18px;background:linear-gradient(135deg,#F9A825,#e65100);color:#fff;opacity:.5;cursor:not-allowed" disabled>
+          🚀 Start Game
+        </button>
+        <div style="font-size:13px;color:rgba(255,255,255,.4);margin-top:8px">Need at least 1 player to start</div>
+      </div>
+    </div>
+
+    <!-- Active question host view -->
+    <div id="lh-active" style="display:none">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;flex-wrap:wrap;gap:10px">
+        <div>
+          <div style="font-size:12px;color:rgba(255,255,255,.5);text-transform:uppercase;letter-spacing:2px">Question <span id="lh-qnum">1</span> of <span id="lh-qtotal">5</span></div>
+          <div id="lh-qtext" style="font-size:20px;font-weight:700;color:#fff;margin-top:4px"></div>
+        </div>
+        <div style="text-align:center">
+          <div id="lh-timer" style="font-family:'Fredoka One',cursive;font-size:48px;color:#F9A825">20</div>
+          <div style="font-size:11px;color:rgba(255,255,255,.4)">seconds</div>
+        </div>
+      </div>
+      <!-- Answer distribution chart for host -->
+      <div id="lh-optrows" style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:16px"></div>
+      <div style="display:flex;justify-content:space-between;align-items:center">
+        <div id="lh-answered" style="font-size:13px;color:rgba(255,255,255,.5)">0 / 0 answered</div>
+        <button class="gbtn" id="lh-nextbtn" onclick="hostNextQuestion()" style="padding:12px 28px;font-size:14px;background:linear-gradient(135deg,#F9A825,#e65100);color:#fff;display:none">Next Question →</button>
+      </div>
+    </div>
+
+    <!-- Post-game leaderboard -->
+    <div id="lh-postboard" style="display:none">
+      <div style="text-align:center;margin-bottom:20px">
+        <div style="font-family:'Fredoka One',cursive;font-size:28px;color:#F9A825">🏆 Final Results</div>
+      </div>
+      <div id="lh-finalboard" style="max-width:500px;margin:0 auto"></div>
+      <div style="text-align:center;margin-top:20px">
+        <button class="gbtn" onclick="endLiveGame()" style="padding:14px 32px;font-size:16px;background:linear-gradient(135deg,var(--primary),var(--primaryDk))">✅ End & Save Results</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+// =====================================================================
+//  SUPABASE SETUP
+//  Replace these two values with your actual Supabase project credentials
+//  (see BACKEND_SETUP.md for full instructions)
+// =====================================================================
+const SUPABASE_URL = 'https://hnmjfnrlbykypxqobtja.supabase.co';       // e.g. https://abcxyz.supabase.co
+const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImhubWpmbnJsYnlreXB4cW9idGphIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODI3MDgzMTUsImV4cCI6MjA5ODI4NDMxNX0.RB6JzDhYIJnaOPTVq2XIpT2jrGAicfHt6pGsxR3rgOA';
+
+let _supabase = null;
+function getSupabase() {
+  if (_supabase) return _supabase;
+  if (typeof window.supabase === 'undefined' || !window.supabase?.createClient) return null;
+  if (SUPABASE_URL === 'YOUR_SUPABASE_URL') return null; // not configured yet
+  _supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+  return _supabase;
+}
+
+// =====================================================================
+//  LOCAL DATA (fallback when Supabase not configured)
+//  Populated from DB after login when Supabase IS configured
+// =====================================================================
+let users = [
+  {id:1,name:"Admin User",email:"admin@leadme.com",password:"admin123",role:"admin",status:"approved",bank:{name:"Admin User",bankName:"First Bank",accountNumber:"0123456789"},scores:[],totalScore:0,joinDate:"2024-01-01",phone:"08012345678",flagged:false},
+  {id:2,name:"Grace Adaeze",email:"grace@test.com",password:"test123",role:"contestant",status:"approved",bank:{name:"Grace Adaeze",bankName:"GTBank",accountNumber:"0234567890"},scores:[{quiz:"Daily Devotional - May",score:850,date:"2024-05-20"},{quiz:"Major Quiz 1",score:1200,date:"2024-05-15"}],totalScore:2050,joinDate:"2024-04-10",phone:"08023456789",flagged:false},
+  {id:3,name:"Samuel Obi",email:"samuel@test.com",password:"test123",role:"contestant",status:"approved",bank:{name:"Samuel Obi",bankName:"Zenith Bank",accountNumber:"0345678901"},scores:[{quiz:"Daily Devotional - May",score:720,date:"2024-05-20"},{quiz:"Major Quiz 1",score:950,date:"2024-05-15"}],totalScore:1670,joinDate:"2024-04-15",phone:"08034567890",flagged:false},
+  {id:4,name:"Blessing Nwosu",email:"blessing@test.com",password:"test123",role:"contestant",status:"pending",bank:{name:"Blessing Nwosu",bankName:"Access Bank",accountNumber:"0456789012"},scores:[],totalScore:0,joinDate:"2024-05-18",phone:"08045678901",flagged:false},
+  {id:5,name:"Emmanuel Eze",email:"emmanuel@test.com",password:"test123",role:"contestant",status:"pending",bank:{name:"Emmanuel Eze",bankName:"UBA",accountNumber:"0567890123"},scores:[],totalScore:0,joinDate:"2024-05-19",phone:"08056789012",flagged:false},
+  {id:6,name:"Chioma Peters",email:"chioma@test.com",password:"test123",role:"contestant",status:"approved",bank:{name:"Chioma Peters",bankName:"Fidelity Bank",accountNumber:"0678901234"},scores:[{quiz:"Major Quiz 1",score:1450,date:"2024-05-15"},{quiz:"Daily Devotional - May",score:900,date:"2024-05-20"}],totalScore:2350,joinDate:"2024-04-20",phone:"08067890123",flagged:false},
+  {id:7,name:"David Okoro",email:"david@test.com",password:"test123",role:"contestant",status:"approved",bank:{name:"David Okoro",bankName:"Sterling Bank",accountNumber:"0789012345"},scores:[{quiz:"Major Quiz 1",score:800,date:"2024-05-15"}],totalScore:800,joinDate:"2024-04-25",phone:"08078901234",flagged:false},
+  {id:8,name:"Ruth Amara",email:"ruth@test.com",password:"test123",role:"contestant",status:"approved",bank:{name:"Ruth Amara",bankName:"Kuda Bank",accountNumber:"0890123456"},scores:[{quiz:"Daily Devotional - May",score:680,date:"2024-05-20"},{quiz:"Major Quiz 1",score:1100,date:"2024-05-15"}],totalScore:1780,joinDate:"2024-04-28",phone:"08089012345",flagged:false},
+];
+let quizzes=[
+  {id:1,name:"Major Quiz 1 - Book of John",questions:[
+    {id:1,text:"Who led the Israelites out of Egypt?",options:["Abraham","Moses","David","Joshua"],correct:1,time:20,points:1000},
+    {id:2,text:"How many days did God take to create the world?",options:["5 days","6 days","7 days","10 days"],correct:1,time:15,points:1000},
+    {id:3,text:"What was the garden where Adam and Eve lived?",options:["Garden of Gethsemane","Garden of Eden","Garden of Olives","Paradise Garden"],correct:1,time:20,points:1000},
+    {id:4,text:"Which psalm begins 'The Lord is my shepherd'?",options:["Psalm 22","Psalm 91","Psalm 23","Psalm 1"],correct:2,time:20,points:1000},
+    {id:5,text:"How many books are in the New Testament?",options:["27","39","66","24"],correct:0,time:15,points:1000}
+  ],type:"major",status:"completed",date:"2024-05-15",host:"Admin User"},
+  {id:2,name:"Daily Devotional - May",questions:[
+    {id:1,text:"What does John 3:16 teach us?",options:["God's love for the world","The Ten Commandments","The Sermon on the Mount","The Lord's Prayer"],correct:0,time:15,points:500},
+    {id:2,text:"'I can do all things through _____ who strengthens me'",options:["Moses","David","Christ","The Holy Spirit"],correct:2,time:20,points:500},
+    {id:3,text:"Which fruit of the Spirit comes first in Galatians 5:22?",options:["Peace","Love","Joy","Kindness"],correct:1,time:15,points:500}
+  ],type:"devotional",status:"completed",date:"2024-05-20",host:"Admin User"}
+];
+
+const OPT_COLORS=["#e53935","#1565C0","#2e7d32","#F9A825"];
+const OPT_ICONS=["◆","●","▲","★"];
+let currentUser=null, activeQuiz=null, quizState=null, timerInterval=null;
+let adminCharts={};
+
+// =====================================================================
+//  LIVE GAME STATE  (Kahoot-style multiplayer)
+// =====================================================================
+let liveGame = {
+  pin: null,           // 6-digit code
+  quizId: null,
+  sessionId: null,     // Supabase DB row id
+  players: {},         // playerId -> {name, score, answers:[]}
+  currentQ: 0,
+  phase: 'lobby',      // lobby | question | results | done
+  hostTimer: null,
+  realtimeSub: null,   // Supabase realtime subscription
+  answerCounts: [],    // per-option answer counts for current Q
+  totalAnswered: 0,
+};
+let myPlayerSession = {
+  pin: null,
+  nickname: null,
+  playerId: null,
+  authUid: null,
+  score: 0,
+  currentQ: 0,
+  quizId: null,
+};
+
+// =====================================================================
+//  UTILS
+// =====================================================================
+function notify(msg,type="success"){
+  const el=document.getElementById('notif');
+  el.textContent=msg;
+  el.style.background=type==="error"?"#C62828":type==="warning"?"#F57F17":"#2e7d32";
+  el.classList.add('show');
+  setTimeout(()=>el.classList.remove('show'),3200);
+}
+function goTo(id){
+  document.querySelectorAll('.screen').forEach(s=>{s.classList.remove('active');s.style.display='';});
+  const el=document.getElementById(id);
+  el.classList.add('active');
+  if(id==='s-quizdone')el.style.display='block';
+  if(id==='s-livehost')el.style.display='block';
+}
+function cTab(id,btn){
+  ['c-overview','c-quizzes','c-leaderboard','c-profile'].forEach(t=>{
+    const el=document.getElementById(t);if(el)el.style.display='none';
+  });
+  document.getElementById(id).style.display='block';
+  document.querySelectorAll('#s-contestant .tab-btn').forEach(b=>b.classList.remove('active'));
+  btn.classList.add('active');
+  if(id==='c-overview')renderContestantOverview();
+  if(id==='c-quizzes')renderContestantQuizzes();
+  if(id==='c-leaderboard')renderContestantLeaderboard();
+  if(id==='c-profile')renderContestantProfile();
+}
+function aTab(id,btn){
+  ['a-dashboard','a-users','a-quizzes','a-livehost','a-leaderboard','a-reports','a-bank'].forEach(t=>{
+    const el=document.getElementById(t);if(el)el.style.display='none';
+  });
+  document.getElementById(id).style.display='block';
+  document.querySelectorAll('#s-admin .tab-btn').forEach(b=>b.classList.remove('active'));
+  btn.classList.add('active');
+  if(id==='a-dashboard')renderAdminDashboard();
+  if(id==='a-users')renderAdminUsers();
+  if(id==='a-quizzes')renderAdminQuizzes();
+  if(id==='a-livehost')renderAdminLiveHost();
+  if(id==='a-leaderboard')renderAdminLeaderboard();
+  if(id==='a-reports')renderAdminReports();
+  if(id==='a-bank')renderAdminBank();
+}
+function getLeaderboard(){return users.filter(u=>u.role==='contestant'&&u.status==='approved').sort((a,b)=>b.totalScore-a.totalScore);}
+function getApproved(){return users.filter(u=>u.role==='contestant'&&u.status==='approved');}
+function getPending(){return users.filter(u=>u.role==='contestant'&&u.status==='pending');}
+function getFlagged(){return users.filter(u=>u.flagged);}
+function genPin(){return Math.floor(100000+Math.random()*900000).toString();}
+
+// Score float animation
+function showScoreFloat(pts, x, y){
+  const el=document.createElement('div');
+  el.className='score-float';
+  el.textContent=`+${pts}`;
+  el.style.left=(x||window.innerWidth/2-30)+'px';
+  el.style.top=(y||window.innerHeight/2-60)+'px';
+  document.body.appendChild(el);
+  setTimeout(()=>el.remove(),1300);
+}
+
+// =====================================================================
+//  AUTH
+// =====================================================================
+function doLogin(){
+  const email=document.getElementById('li-email').value.trim();
+  const pass=document.getElementById('li-pass').value;
+  // Try Supabase first, fall back to local
+  const sb=getSupabase();
+  if(sb){
+    sb.auth.signInWithPassword({email,password:pass}).then(({data,error})=>{
+      if(error){notify("Invalid credentials","error");return;}
+      // Fetch user profile from DB
+      sb.from('profiles').select('*').eq('id',data.user.id).single().then(({data:profile})=>{
+        if(!profile){notify("Profile not found","error");return;}
+        currentUser={...profile, supabaseId:data.user.id};
+        if(currentUser.status==='pending')return notify("Your account is pending admin approval","warning");
+        afterLogin();
+      });
+    });
+  } else {
+    // Local fallback
+    const user=users.find(u=>u.email===email&&u.password===pass);
+    if(!user)return notify("Invalid credentials","error");
+    if(user.status==="pending")return notify("Your account is pending admin approval","warning");
+    currentUser=user;
+    afterLogin();
+  }
+}
+function afterLogin(){
+  if(currentUser.role==='admin'){goTo('s-admin');renderAdminDashboard();}
+  else{goTo('s-contestant');renderContestantOverview();}
+  notify(`Welcome back, ${currentUser.name}! 🙏`);
+}
+function doLogout(){
+  // Unsubscribe realtime if active
+  if(liveGame.realtimeSub){
+    const sb=getSupabase();
+    if(sb)sb.removeChannel(liveGame.realtimeSub);
+    liveGame.realtimeSub=null;
+  }
+  currentUser=null;activeQuiz=null;quizState=null;
+  if(timerInterval)clearInterval(timerInterval);
+  if(liveGame.hostTimer)clearInterval(liveGame.hostTimer);
+  liveGame={pin:null,quizId:null,sessionId:null,players:{},currentQ:0,phase:'lobby',hostTimer:null,realtimeSub:null,answerCounts:[],totalAnswered:0};
+  myPlayerSession={pin:null,nickname:null,playerId:null,score:0,currentQ:0,quizId:null};
+  goTo('s-landing');
+}
+function doRegister(){
+  const name=document.getElementById('rg-name').value.trim();
+  const email=document.getElementById('rg-email').value.trim();
+  const pass=document.getElementById('rg-pass').value;
+  const phone=document.getElementById('rg-phone').value.trim();
+  const bname=document.getElementById('rg-bname').value.trim();
+  const bank=document.getElementById('rg-bank').value.trim();
+  const acct=document.getElementById('rg-acct').value.trim();
+  if(!name||!email||!pass||!phone||!bname||!bank||!acct)return notify("Please fill all fields","error");
+  const sb=getSupabase();
+  if(sb){
+    // Metadata is read by the on_auth_user_created DB trigger (see supabase_setup.sql),
+    // which auto-creates the profiles row — no manual insert needed here.
+    sb.auth.signUp({
+      email,password:pass,
+      options:{data:{name,phone,bank_name:bname,bank_institution:bank,bank_account:acct}}
+    }).then(({data,error})=>{
+      if(error){notify(error.message,"error");return;}
+      notify("Registration successful! Awaiting admin approval 🎉");
+      goTo('s-landing');
+    });
+  } else {
+    const existing=users.find(u=>u.email===email);
+    if(existing){users=users.map(u=>u.email===email?{...u,flagged:true}:u);return notify("⚠️ Email already registered! Admin notified.","error");}
+    users.push({id:users.length+1,name,email,password:pass,role:"contestant",status:"pending",bank:{name:bname,bankName:bank,accountNumber:acct},scores:[],totalScore:0,joinDate:new Date().toISOString().split("T")[0],phone,flagged:false});
+    notify("Registration successful! Awaiting admin approval 🎉");
+    goTo('s-landing');
+  }
+}
+
+// =====================================================================
+//  PIN JOIN FLOW  (Contestant)
+// =====================================================================
+function joinByPin(){
+  const pin=document.getElementById('pin-input').value.trim();
+  if(pin.length!==6||!/^\d+$/.test(pin))return notify("Enter a valid 6-digit PIN","error");
+  const sb=getSupabase();
+  if(sb){
+    // Look up live session in Supabase
+    sb.from('live_sessions').select('*,quizzes(name)').eq('pin',pin).eq('phase','lobby').single().then(({data,error})=>{
+      if(error||!data)return notify("No active game with that PIN","error");
+      myPlayerSession.pin=pin;
+      myPlayerSession.quizId=data.quiz_id;
+      document.getElementById('pj-quizname').textContent='📖 '+data.quizzes.name;
+      goTo('s-pinentry');
+    });
+  } else {
+    // Local mode: check liveGame
+    if(liveGame.pin!==pin||liveGame.phase!=='lobby')return notify("No active game with that PIN","error");
+    myPlayerSession.pin=pin;
+    myPlayerSession.quizId=liveGame.quizId;
+    const qz=quizzes.find(q=>q.id===liveGame.quizId);
+    document.getElementById('pj-quizname').textContent='📖 '+(qz?qz.name:'');
+    goTo('s-pinentry');
+  }
+}
+function confirmJoin(){
+  const nick=document.getElementById('pj-nickname').value.trim();
+  if(!nick)return notify("Enter your name","error");
+  myPlayerSession.nickname=nick;
+  myPlayerSession.playerId='p_'+Date.now()+'_'+Math.random().toString(36).slice(2,6);
+  myPlayerSession.score=0;
+  myPlayerSession.currentQ=0;
+
+  const sb=getSupabase();
+  if(sb){
+    // Anonymous sign-in gives this guest a real auth.uid() — without this,
+    // the database has no way to tell "your row" from "someone else's row".
+    sb.auth.signInAnonymously().then(({data:authData,error:authErr})=>{
+      if(authErr){notify("Could not join game: "+authErr.message,"error");return;}
+      myPlayerSession.authUid=authData.user.id;
+      sb.from('live_sessions').select('id').eq('pin',myPlayerSession.pin).eq('phase','lobby').single().then(({data})=>{
+        if(!data)return notify("Game no longer accepting players","error");
+        sb.from('live_players').insert([{
+          session_id:data.id,auth_uid:myPlayerSession.authUid,player_id:myPlayerSession.playerId,
+          nickname:nick,score:0
+        }]).then(({error})=>{
+          if(error){notify("Could not join game","error");return;}
+          myPlayerSession.sessionId=data.id;
+          enterLobby();
+          subscribeToGameAsPlayer(data.id);
+        });
+      });
+    });
+  } else {
+    // Local mode
+    if(!liveGame.players)liveGame.players={};
+    liveGame.players[myPlayerSession.playerId]={name:nick,score:0,answers:[]};
+    refreshLobbyHostUI();
+    enterLobby();
+  }
+}
+function enterLobby(){
+  const qz=quizzes.find(q=>q.id===myPlayerSession.quizId)||{name:''};
+  document.getElementById('gl-quizname').textContent=qz.name;
+  document.getElementById('gl-pinnum').textContent=myPlayerSession.pin;
+  goTo('s-gamelobby');
+  renderLobbyPlayers();
+}
+
+// Poll/refresh lobby player list for players (local mode)
+let lobbyInterval=null;
+function renderLobbyPlayers(){
+  if(lobbyInterval)clearInterval(lobbyInterval);
+  lobbyInterval=setInterval(()=>{
+    if(liveGame.phase==='lobby'){
+      const players=Object.values(liveGame.players||{});
+      document.getElementById('gl-count').textContent=players.length;
+      document.getElementById('gl-players').innerHTML=players.map(p=>`<div class="player-chip">🙏 ${p.name}</div>`).join('');
+    } else if(liveGame.phase==='question'){
+      // Host started the game — start quiz for this player
+      clearInterval(lobbyInterval);
+      startLiveQuizAsPlayer();
+    }
+  },1000);
+}
+function startLiveQuizAsPlayer(){
+  const qz=quizzes.find(q=>q.id===myPlayerSession.quizId);
+  if(!qz)return;
+  activeQuiz=qz;
+  quizState={currentQ:0,timeLeft:qz.questions[0].time,answered:null,score:0,results:[],phase:'question',isLive:true};
+  renderQuizQuestion();
+  goTo('s-quiz');
+  startTimer();
+  // Show live bar
+  document.getElementById('q-livebar').style.display='flex';
+  syncLivePlayerState();
+}
+
+// =====================================================================
+//  LIVE GAME — HOST SIDE
+// =====================================================================
+function renderAdminLiveHost(){
+  document.getElementById('a-livehost').innerHTML=`
+    <div style="font-weight:800;font-size:20px;color:var(--primary);margin-bottom:6px">🎮 Live Game Host</div>
+    <div style="font-size:14px;color:var(--muted);margin-bottom:18px">Create a live multiplayer quiz session with a shareable PIN. Up to 500 players.</div>
+    <div class="card" style="margin-bottom:16px">
+      <div style="font-weight:700;font-size:16px;color:var(--primary);margin-bottom:14px">Choose a quiz to host live</div>
+      ${quizzes.map(q=>`
+        <div style="display:flex;justify-content:space-between;align-items:center;padding:14px;border-radius:12px;border:1.5px solid var(--border);margin-bottom:10px;background:#f9fffe">
+          <div>
+            <div style="font-weight:700;font-size:15px">${q.name}</div>
+            <div style="font-size:12px;color:var(--muted);margin-top:2px">${q.questions.length} questions · ${q.type}</div>
+          </div>
+          <button class="gbtn" onclick="hostCreateSession(${q.id})" style="padding:10px 20px;font-size:14px;background:linear-gradient(135deg,var(--primary),var(--primaryDk))">
+            🚀 Host Live
+          </button>
+        </div>`).join('')}
+    </div>
+    <div class="card" style="background:#fff8e1;border:1.5px solid #F9A825">
+      <div style="font-weight:700;font-size:14px;color:#F57F17;margin-bottom:8px">⚡ How it works</div>
+      <div style="font-size:13px;color:#5D4037;line-height:1.8">
+        1. Click "Host Live" to generate a 6-digit PIN<br>
+        2. Share the PIN with contestants — they enter it on the landing page<br>
+        3. Once enough players join, click "Start Game"<br>
+        4. Questions auto-advance in real time across all devices<br>
+        5. See live answer stats and a real-time leaderboard after each question<br>
+        6. Final results are saved automatically
+      </div>
+    </div>`;
+}
+async function hostCreateSession(quizId){
+  const pin=genPin();
+  const qz=quizzes.find(q=>q.id===quizId);
+  if(!qz)return;
+
+  // Reset liveGame
+  liveGame.pin=pin;
+  liveGame.quizId=quizId;
+  liveGame.players={};
+  liveGame.currentQ=0;
+  liveGame.phase='lobby';
+  liveGame.totalAnswered=0;
+  liveGame.answerCounts=new Array(qz.questions[0].options.length).fill(0);
+
+  const sb=getSupabase();
+  if(sb){
+    const {data,error}=await sb.from('live_sessions').insert([{
+      pin,quiz_id:quizId,phase:'lobby',current_question:0,
+      host_id:currentUser.supabaseId||currentUser.id
+    }]).select().single();
+    if(error){notify("DB error: "+error.message,"error");return;}
+    liveGame.sessionId=data.id;
+    subscribeToSessionAsHost(data.id);
+  }
+
+  document.getElementById('lh-quizname').textContent=qz.name;
+  document.getElementById('lh-pin').textContent=pin;
+  document.getElementById('lh-pinbig').textContent=pin;
+  document.getElementById('lh-playercount').textContent='👥 0';
+  document.getElementById('lh-lobbycount').textContent='0';
+  document.getElementById('lh-lobbyplayers').innerHTML='';
+  document.getElementById('lh-lobby').style.display='block';
+  document.getElementById('lh-active').style.display='none';
+  document.getElementById('lh-postboard').style.display='none';
+  goTo('s-livehost');
+
+  // Poll in local mode
+  if(!sb) startHostLobbyPoll();
+}
+
+function startHostLobbyPoll(){
+  let hostPoll=setInterval(()=>{
+    if(liveGame.phase!=='lobby'){clearInterval(hostPoll);return;}
+    refreshLobbyHostUI();
+  },1000);
+}
+function refreshLobbyHostUI(){
+  const players=Object.values(liveGame.players||{});
+  const count=players.length;
+  document.getElementById('lh-lobbycount').textContent=count;
+  document.getElementById('lh-lobbyplayers').innerHTML=players.map(p=>`<div class="player-chip">🙏 ${p.name}</div>`).join('');
+  document.getElementById('lh-playercount').textContent='👥 '+count;
+  const btn=document.getElementById('lh-startbtn');
+  if(count>=1){btn.disabled=false;btn.style.opacity='1';btn.style.cursor='pointer';}
+  else{btn.disabled=true;btn.style.opacity='.5';btn.style.cursor='not-allowed';}
+}
+
+async function hostStartGame(){
+  const qz=quizzes.find(q=>q.id===liveGame.quizId);
+  if(!qz)return;
+  liveGame.phase='question';
+  liveGame.currentQ=0;
+  liveGame.answerCounts=new Array(qz.questions[0].options.length).fill(0);
+  liveGame.totalAnswered=0;
+
+  const sb=getSupabase();
+  if(sb){
+    await sb.from('live_sessions').update({phase:'question',current_question:0,question_started_at:new Date().toISOString()}).eq('id',liveGame.sessionId);
+  }
+
+  document.getElementById('lh-lobby').style.display='none';
+  document.getElementById('lh-active').style.display='block';
+  renderHostQuestion();
+  hostStartTimer();
+}
+function renderHostQuestion(){
+  const qz=quizzes.find(q=>q.id===liveGame.quizId);
+  const q=qz.questions[liveGame.currentQ];
+  liveGame.answerCounts=new Array(q.options.length).fill(0);
+  liveGame.totalAnswered=0;
+  document.getElementById('lh-qnum').textContent=liveGame.currentQ+1;
+  document.getElementById('lh-qtotal').textContent=qz.questions.length;
+  document.getElementById('lh-qtext').textContent=q.text;
+  document.getElementById('lh-nextbtn').style.display='none';
+  document.getElementById('lh-answered').textContent=`0 / ${Object.keys(liveGame.players).length} answered`;
+  document.getElementById('lh-optrows').innerHTML=q.options.map((opt,i)=>`
+    <div style="background:${OPT_COLORS[i]}22;border:2px solid ${OPT_COLORS[i]}66;border-radius:14px;padding:14px">
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
+        <span style="font-size:16px">${OPT_ICONS[i]}</span>
+        <span style="font-weight:700;font-size:14px;color:#fff">${opt}</span>
+        <span id="lh-opt-count-${i}" style="margin-left:auto;font-size:20px;font-weight:900;color:${OPT_COLORS[i]}">0</span>
+      </div>
+      <div style="height:10px;background:rgba(255,255,255,.1);border-radius:5px;overflow:hidden">
+        <div class="answer-bar" id="lh-opt-bar-${i}" style="width:0%;background:${OPT_COLORS[i]}"></div>
+      </div>
+    </div>`).join('');
+}
+function hostStartTimer(){
+  if(liveGame.hostTimer)clearInterval(liveGame.hostTimer);
+  const qz=quizzes.find(q=>q.id===liveGame.quizId);
+  const q=qz.questions[liveGame.currentQ];
+  let t=q.time;
+  document.getElementById('lh-timer').textContent=t;
+  liveGame.hostTimer=setInterval(()=>{
+    t=Math.max(0,t-1);
+    const el=document.getElementById('lh-timer');
+    if(el){el.textContent=t;el.style.color=t>10?'#F9A825':t>5?'#FF7043':'#EF5350';}
+    if(t<=0){clearInterval(liveGame.hostTimer);hostRevealAnswers();}
+  },1000);
+}
+function hostRevealAnswers(){
+  const qz=quizzes.find(q=>q.id===liveGame.quizId);
+  const q=qz.questions[liveGame.currentQ];
+  // Highlight correct answer
+  q.options.forEach((_,i)=>{
+    const bar=document.getElementById('lh-opt-bar-'+i);
+    if(bar&&i===q.correct){bar.style.background='#2e7d32';bar.parentElement.parentElement.style.border='2px solid #2e7d32';}
+  });
+  document.getElementById('lh-nextbtn').style.display='block';
+}
+async function hostNextQuestion(){
+  const qz=quizzes.find(q=>q.id===liveGame.quizId);
+  const next=liveGame.currentQ+1;
+  if(next>=qz.questions.length){
+    // Done
+    liveGame.phase='done';
+    clearInterval(liveGame.hostTimer);
+    document.getElementById('lh-active').style.display='none';
+    document.getElementById('lh-postboard').style.display='block';
+    renderFinalBoard();
+    const sb=getSupabase();
+    if(sb)await sb.from('live_sessions').update({phase:'done'}).eq('id',liveGame.sessionId);
+    return;
+  }
+  liveGame.currentQ=next;
+  liveGame.phase='question';
+  const sb=getSupabase();
+  if(sb)await sb.from('live_sessions').update({phase:'question',current_question:next,question_started_at:new Date().toISOString()}).eq('id',liveGame.sessionId);
+  renderHostQuestion();
+  hostStartTimer();
+}
+function renderFinalBoard(){
+  const sorted=Object.entries(liveGame.players).sort((a,b)=>b[1].score-a[1].score);
+  document.getElementById('lh-finalboard').innerHTML=sorted.slice(0,10).map(([id,p],i)=>`
+    <div class="lb-row ${i===0?'first':i===1?'second':i===2?'third':''}">
+      <div style="font-size:20px">${i===0?'🥇':i===1?'🥈':i===2?'🥉':'#'+(i+1)}</div>
+      <div style="font-weight:700;font-size:15px;flex:1">${p.name}</div>
+      <div style="font-family:'Fredoka One',cursive;font-size:20px;color:#F9A825">${p.score.toLocaleString()}</div>
+    </div>`).join('');
+}
+async function endLiveGame(){
+  // Save top scores to local users array (or Supabase)
+  const sorted=Object.entries(liveGame.players).sort((a,b)=>b[1].score-a[1].score);
+  const qz=quizzes.find(q=>q.id===liveGame.quizId);
+  const entry={quiz:qz.name,score:0,date:new Date().toISOString().split('T')[0]};
+  notify(`Game ended. ${sorted.length} players scored!`);
+  const sb=getSupabase();
+  if(sb){
+    await sb.from('live_sessions').update({phase:'done',ended_at:new Date().toISOString()}).eq('id',liveGame.sessionId);
+    if(liveGame.realtimeSub)sb.removeChannel(liveGame.realtimeSub);
+  }
+  goTo('s-admin');
+  aTab('a-dashboard',document.querySelector('#s-admin .tab-btn'));
+}
+
+// =====================================================================
+//  SUPABASE REALTIME SUBSCRIPTIONS
+// =====================================================================
+function subscribeToSessionAsHost(sessionId){
+  const sb=getSupabase();if(!sb)return;
+  // Subscribe to live_players changes
+  liveGame.realtimeSub=sb.channel('host-'+sessionId)
+    .on('postgres_changes',{event:'INSERT',schema:'public',table:'live_players',filter:`session_id=eq.${sessionId}`},(payload)=>{
+      const p=payload.new;
+      liveGame.players[p.player_id]={name:p.nickname,score:p.score||0,answers:[]};
+      refreshLobbyHostUI();
+    })
+    .on('postgres_changes',{event:'UPDATE',schema:'public',table:'live_players',filter:`session_id=eq.${sessionId}`},(payload)=>{
+      const p=payload.new;
+      if(liveGame.players[p.player_id]){
+        liveGame.players[p.player_id].score=p.score;
+        // Update answer counts
+        if(p.last_answer!==null&&p.last_answer!==undefined){
+          const idx=p.last_answer;
+          if(idx>=0&&idx<liveGame.answerCounts.length){
+            liveGame.answerCounts[idx]=(liveGame.answerCounts[idx]||0)+1;
+            liveGame.totalAnswered++;
+            updateHostAnswerBars();
+            const pcount=Object.keys(liveGame.players).length;
+            const el=document.getElementById('lh-answered');
+            if(el)el.textContent=`${liveGame.totalAnswered} / ${pcount} answered`;
+          }
+        }
+      }
+    })
+    .subscribe();
+}
+function subscribeToGameAsPlayer(sessionId){
+  const sb=getSupabase();if(!sb)return;
+  sb.channel('player-'+sessionId)
+    .on('postgres_changes',{event:'UPDATE',schema:'public',table:'live_sessions',filter:`id=eq.${sessionId}`},(payload)=>{
+      const s=payload.new;
+      if(s.phase==='question'&&myPlayerSession.currentQ<s.current_question){
+        // Advance to next question
+        myPlayerSession.currentQ=s.current_question;
+        if(quizState){
+          quizState.currentQ=s.current_question;
+          quizState.timeLeft=activeQuiz.questions[s.current_question].time;
+          quizState.answered=null;
+          quizState.phase='question';
+          renderQuizQuestion();
+          startTimer();
+        }
+      } else if(s.phase==='question'&&myPlayerSession.currentQ===0&&quizState===null){
+        startLiveQuizAsPlayer();
+      } else if(s.phase==='done'){
+        // Show final standings
+        finishQuiz();
+      }
+    })
+    .subscribe();
+}
+function updateHostAnswerBars(){
+  const total=Math.max(1,liveGame.totalAnswered);
+  liveGame.answerCounts.forEach((c,i)=>{
+    const bar=document.getElementById('lh-opt-bar-'+i);
+    const cnt=document.getElementById('lh-opt-count-'+i);
+    if(bar)bar.style.width=Math.round((c/total)*100)+'%';
+    if(cnt)cnt.textContent=c;
+  });
+}
+
+// Live player answer reporting
+async function reportAnswerToHost(optIdx){
+  const sb=getSupabase();
+  if(sb&&myPlayerSession.sessionId){
+    // The server (not this browser) decides how many points this is worth.
+    // It looks up the correct answer and timing itself and writes the score.
+    const {data,error}=await sb.rpc('submit_live_answer',{
+      p_session_id:myPlayerSession.sessionId,
+      p_chosen_option:optIdx
+    });
+    if(!error&&data&&quizState&&quizState.results.length){
+      // Reconcile: the UI showed an optimistic score instantly for good
+      // feel, now correct it to whatever the server actually awarded.
+      const lastResult=quizState.results[quizState.results.length-1];
+      const diff=data.awarded-lastResult.earned;
+      if(diff!==0){
+        lastResult.earned=data.awarded;
+        quizState.score+=diff;
+        const scoreEl=document.getElementById('q-score');
+        if(scoreEl)scoreEl.textContent='⭐ '+quizState.score.toLocaleString();
+        if(lastResult.correct){
+          const rm=document.getElementById('q-resultmsg');
+          if(rm)rm.textContent=`✅ Correct! +${data.awarded} points`;
+        }
+      }
+      myPlayerSession.score=quizState.score;
+    }
+  } else {
+    // Local
+    if(liveGame.players&&liveGame.players[myPlayerSession.playerId]){
+      liveGame.players[myPlayerSession.playerId].score=myPlayerSession.score;
+      liveGame.answerCounts[optIdx]=(liveGame.answerCounts[optIdx]||0)+1;
+      liveGame.totalAnswered++;
+      updateHostAnswerBars();
+    }
+  }
+}
+function syncLivePlayerState(){
+  // Update live count display for players
+  const count=Object.keys(liveGame.players||{}).length;
+  const el=document.getElementById('q-livecount');
+  if(el)el.textContent=count+' players';
+}
+
+// =====================================================================
+//  SPEEDO SVG
+// =====================================================================
+function makeSpeedo(value,max,label,color){
+  const pct=Math.min(100,value/max*100);
+  const startDeg=-135,endDeg=135,sweepDeg=270;
+  const toRad=d=>d*Math.PI/180;
+  const cx=60,cy=60,r=45;
+  function arcPt(deg){return{x:cx+r*Math.cos(toRad(deg)),y:cy+r*Math.sin(toRad(deg))};}
+  const s=arcPt(startDeg),e0=arcPt(endDeg);
+  const fillAngle=startDeg+(pct/100)*sweepDeg;
+  const ef=arcPt(fillAngle);
+  const large=pct>50?1:0;
+  const nx=cx+r*0.7*Math.cos(toRad(fillAngle));
+  const ny=cy+r*0.7*Math.sin(toRad(fillAngle));
+  return`<div style="text-align:center">
+    <svg width="120" height="80" viewBox="0 0 120 90">
+      <path d="M ${s.x} ${s.y} A ${r} ${r} 0 1 1 ${e0.x} ${e0.y}" fill="none" stroke="#e0e0e0" stroke-width="8" stroke-linecap="round"/>
+      <path d="M ${s.x} ${s.y} A ${r} ${r} 0 ${large} 1 ${ef.x} ${ef.y}" fill="none" stroke="${color}" stroke-width="8" stroke-linecap="round"/>
+      <line x1="${cx}" y1="${cy}" x2="${nx}" y2="${ny}" stroke="${color}" stroke-width="3" stroke-linecap="round"/>
+      <circle cx="${cx}" cy="${cy}" r="5" fill="${color}"/>
+      <text x="${cx}" y="${cy+22}" text-anchor="middle" font-size="14" font-weight="700" fill="${color}">${Math.round(pct)}%</text>
+    </svg>
+    <div style="font-size:12px;color:var(--muted);margin-top:-4px">${label}</div>
+  </div>`;
+}
+
+// =====================================================================
+//  CONTESTANT SCREENS
+// =====================================================================
+function renderContestantOverview(){
+  const u=users.find(x=>x.id===currentUser.id)||currentUser;
+  document.getElementById('c-username').textContent=u.name;
+  const lb=getLeaderboard();
+  const myRank=lb.findIndex(x=>x.id===u.id)+1;
+  const acc=u.scores.length>0?Math.round((u.totalScore/(u.scores.length*1000))*100):0;
+  document.getElementById('c-stats').innerHTML=[
+    ['🏆 Total Score',u.totalScore.toLocaleString(),'#F9A825'],
+    ['🎯 My Rank',myRank>0?`#${myRank}`:'—','var(--primary)'],
+    ['📖 Quizzes Taken',u.scores.length,'var(--secondary)'],
+    ['✅ Accuracy',acc+'%','var(--teal)']
+  ].map(([l,v,c])=>`<div class="card" style="text-align:center;border-top:4px solid ${c}">
+    <div style="font-size:12px;color:var(--muted);font-weight:600">${l}</div>
+    <div style="font-size:26px;font-weight:800;color:${c}">${v}</div>
+  </div>`).join('');
+  document.getElementById('c-speedos').innerHTML=
+    makeSpeedo(acc,100,'Accuracy','var(--primary)')+
+    makeSpeedo(myRank>0?Math.max(0,Math.round((1-myRank/lb.length)*100)):0,100,'Rank Score','var(--secondary)')+
+    makeSpeedo(u.scores.length,Math.max(5,quizzes.length),'Participation','#F9A825');
+  const rs=document.getElementById('c-recentscores');
+  if(u.scores.length===0){rs.innerHTML='<div style="color:var(--muted);font-size:14px">No quiz scores yet. Play a quiz to get started! 🎯</div>';return;}
+  rs.innerHTML=`<div style="font-weight:700;font-size:15px;color:var(--primary);margin-bottom:12px">📈 Recent Scores</div>`+
+    u.scores.slice(-5).reverse().map((s,i,arr)=>`
+      <div style="display:flex;justify-content:space-between;align-items:center;padding:10px 0;${i<arr.length-1?'border-bottom:1px solid var(--border)':''}">
+        <div><div style="font-weight:600;font-size:14px">${s.quiz}</div><div style="font-size:12px;color:var(--muted)">${s.date}</div></div>
+        <span class="badge" style="background:${s.score>800?'#e8f5e9':'#e3f2fd'};color:${s.score>800?'var(--primary)':'var(--secondary)'}">${s.score.toLocaleString()} pts</span>
+      </div>`).join('');
+}
+function renderContestantQuizzes(){
+  document.getElementById('c-quizlist').innerHTML=quizzes.map(q=>`
+    <div class="card" style="margin-bottom:12px">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:10px">
+        <div>
+          <div style="font-weight:700;font-size:16px">${q.name}</div>
+          <div style="font-size:13px;color:var(--muted);margin-top:3px">${q.questions.length} questions · ${q.type==='devotional'?'Daily Devotional':'Major Quiz'} · ${q.date}</div>
+        </div>
+        <div style="display:flex;gap:8px;align-items:center">
+          <span class="badge" style="background:${q.type==='devotional'?'#e0f2f1':'#f3e5f5'};color:${q.type==='devotional'?'var(--teal)':'#6A1B9A'}">${q.type}</span>
+          <button class="gbtn" onclick="startQuiz(${q.id})" style="padding:8px 18px;font-size:13px;background:linear-gradient(135deg,var(--primary),var(--primaryDk))">▶ Play Solo</button>
+        </div>
+      </div>
+    </div>`).join('');
+}
+function renderContestantLeaderboard(){
+  const lb=getLeaderboard();
+  document.getElementById('c-lbody').innerHTML=lb.slice(0,10).map((u,i)=>`
+    <div style="display:flex;align-items:center;gap:12px;padding:12px 0;${i<9?'border-bottom:1px solid var(--border)':''};${u.id===currentUser.id?'background:#e8f5e9;border-radius:8px;padding-left:8px':''}">
+      <div style="width:32px;height:32px;border-radius:50%;background:${i===0?'#F9A825':i===1?'#C0C0C0':i===2?'#CD7F32':'var(--border)'};display:flex;align-items:center;justify-content:center;font-weight:800;font-size:13px;color:${i<3?'var(--brown)':'var(--muted)'}">#${i+1}</div>
+      <div style="width:36px;height:36px;border-radius:50%;background:#e8f5e9;display:flex;align-items:center;justify-content:center;font-weight:700;color:var(--primary);font-size:15px">${u.name[0]}</div>
+      <div style="flex:1"><div style="font-weight:600;font-size:14px">${u.name}${u.id===currentUser.id?' <span class="badge" style="background:#e8f5e9;color:var(--primary);font-size:11px">You</span>':''}</div><div style="font-size:12px;color:var(--muted)">${u.scores.length} quizzes</div></div>
+      <div style="font-weight:800;font-size:16px;color:var(--primary)">${u.totalScore.toLocaleString()}</div>
+    </div>`).join('');
+}
+function renderContestantProfile(){
+  const u=users.find(x=>x.id===currentUser.id)||currentUser;
+  document.getElementById('c-profilebody').innerHTML=`<div style="font-weight:700;font-size:17px;color:var(--primary);margin-bottom:14px">👤 My Profile</div>`+
+    [['Full Name',u.name],['Email',u.email],['Phone',u.phone],['Join Date',u.joinDate],['Account Name',u.bank.name],['Bank Name',u.bank.bankName],['Account Number',u.bank.accountNumber.replace(/(\d{4})(\d{4})(\d+)/,'$1 $2 $3')]].map(([l,v],i,arr)=>`
+      <div style="display:flex;justify-content:space-between;padding:10px 0;${i<arr.length-1?'border-bottom:1px solid var(--border)':''}">
+        <span style="color:var(--muted);font-weight:600;font-size:14px">${l}</span>
+        <span style="font-weight:700;font-size:14px">${v}</span>
+      </div>`).join('');
+}
+function postQuizDone(){
+  if(myPlayerSession.pin){
+    // Was a live game guest
+    myPlayerSession={pin:null,nickname:null,playerId:null,score:0,currentQ:0,quizId:null};
+    goTo('s-landing');
+  } else {
+    goContestant();
+  }
+}
+function goContestant(){goTo('s-contestant');renderContestantOverview();cTab('c-overview',document.querySelector('#s-contestant .tab-btn'));}
+
+// =====================================================================
+//  QUIZ ENGINE (solo + live player)
+// =====================================================================
+function startQuiz(qid){
+  activeQuiz=quizzes.find(q=>q.id===qid);
+  if(!activeQuiz)return;
+  quizState={currentQ:0,timeLeft:activeQuiz.questions[0].time,answered:null,score:0,results:[],phase:'question',isLive:false};
+  document.getElementById('q-livebar').style.display='none';
+  renderQuizQuestion();
+  goTo('s-quiz');
+  startTimer();
+}
+function renderQuizQuestion(){
+  if(!quizState||!activeQuiz)return;
+  const q=activeQuiz.questions[quizState.currentQ];
+  document.getElementById('q-quizname').textContent='💧 '+activeQuiz.name;
+  document.getElementById('q-score').textContent='⭐ '+quizState.score.toLocaleString();
+  document.getElementById('q-progress').textContent=`${quizState.currentQ+1}/${activeQuiz.questions.length}`;
+  document.getElementById('q-progbar').style.width=(quizState.currentQ/activeQuiz.questions.length*100)+'%';
+  document.getElementById('q-qnum').textContent=`Question ${quizState.currentQ+1} of ${activeQuiz.questions.length}`;
+  document.getElementById('q-qtext').textContent=q.text;
+  document.getElementById('q-pts').textContent=`⚡ Up to ${q.points} points`;
+  document.getElementById('q-result').style.display='none';
+  document.getElementById('q-timerfill').style.width='100%';
+  document.getElementById('q-timerlabel').textContent=q.time+'s';
+  document.getElementById('q-opts').innerHTML=q.options.map((opt,i)=>`
+    <button class="opt-btn" onclick="answerQ(${i})" id="opt-${i}" style="background:${OPT_COLORS[i]}">
+      <span style="font-size:18px">${OPT_ICONS[i]}</span><span>${opt}</span>
+    </button>`).join('');
+}
+function startTimer(){
+  if(timerInterval)clearInterval(timerInterval);
+  if(!quizState)return;
+  const q=activeQuiz.questions[quizState.currentQ];
+  const total=q.time;
+  timerInterval=setInterval(()=>{
+    if(!quizState||quizState.phase!=='question'){clearInterval(timerInterval);return;}
+    quizState.timeLeft=Math.max(0,quizState.timeLeft-1);
+    const pct=(quizState.timeLeft/total)*100;
+    const fill=document.getElementById('q-timerfill');
+    const lbl=document.getElementById('q-timerlabel');
+    if(fill)fill.style.background=pct>50?'var(--primary)':pct>25?'#F57F17':'#C62828';
+    if(fill)fill.style.width=pct+'%';
+    if(lbl)lbl.textContent=quizState.timeLeft+'s';
+    if(quizState.timeLeft<=0){clearInterval(timerInterval);answerQ(-1);}
+  },1000);
+}
+function answerQ(idx){
+  if(!quizState||quizState.phase!=='question')return;
+  clearInterval(timerInterval);
+  const q=activeQuiz.questions[quizState.currentQ];
+  const isCorrect=idx===q.correct;
+  const timeBonus=isCorrect?Math.round((quizState.timeLeft/q.time)*q.points):0;
+  quizState.answered=idx;quizState.phase='result';quizState.score+=timeBonus;
+  quizState.results.push({q:q.text,correct:isCorrect,earned:timeBonus,chosen:idx,correctIdx:q.correct});
+
+  // If live game — update score and report
+  if(quizState.isLive){
+    myPlayerSession.score=quizState.score;
+    if(idx>=0)reportAnswerToHost(idx);
+  }
+
+  // Score float
+  if(isCorrect&&timeBonus>0)showScoreFloat(timeBonus);
+
+  for(let i=0;i<q.options.length;i++){
+    const btn=document.getElementById('opt-'+i);
+    if(!btn)continue;
+    if(i===q.correct){btn.style.background='#2e7d32';btn.innerHTML+=` <span style="margin-left:auto">✓</span>`;}
+    else if(i===idx&&i!==q.correct){btn.style.background='#C62828';btn.style.opacity='0.75';btn.innerHTML+=` <span style="margin-left:auto">✗</span>`;}
+    else{btn.style.opacity='0.45';}
+    btn.disabled=true;
+  }
+  const rm=document.getElementById('q-resultmsg');
+  rm.textContent=isCorrect?`✅ Correct! +${timeBonus} points`:idx===-1?`⏱️ Time's up! 0 points`:`❌ Wrong! Correct: ${q.options[q.correct]}`;
+
+  // Show live answer distribution
+  if(quizState.isLive){
+    showAnswerBars(q);
+    showMiniTop();
+  }
+
+  document.getElementById('q-nextbtn').textContent=quizState.currentQ+1>=activeQuiz.questions.length?'Finish Quiz 🎉':'Next Question →';
+  document.getElementById('q-result').style.display='block';
+}
+function showAnswerBars(q){
+  const total=Math.max(1,liveGame.totalAnswered||1);
+  const bars=document.getElementById('q-answerbars');
+  bars.style.display='block';
+  bars.innerHTML='<div style="font-size:13px;color:rgba(255,255,255,.7);margin-bottom:8px;font-weight:700">📊 Answer Distribution</div>'+
+    q.options.map((opt,i)=>`
+      <div style="margin-bottom:8px">
+        <div style="display:flex;justify-content:space-between;font-size:12px;color:rgba(255,255,255,.8);margin-bottom:3px">
+          <span>${OPT_ICONS[i]} ${opt}${i===q.correct?' ✓':''}</span>
+          <span>${liveGame.answerCounts[i]||0}</span>
+        </div>
+        <div style="height:8px;background:rgba(255,255,255,.1);border-radius:4px;overflow:hidden">
+          <div style="height:100%;background:${i===q.correct?'#2e7d32':OPT_COLORS[i]};border-radius:4px;width:${Math.round(((liveGame.answerCounts[i]||0)/total)*100)}%;transition:width .6s"></div>
+        </div>
+      </div>`).join('');
+}
+function showMiniTop(){
+  const mt=document.getElementById('q-minitop');
+  const sorted=Object.entries(liveGame.players||{}).sort((a,b)=>b[1].score-a[1].score).slice(0,3);
+  if(sorted.length===0){mt.style.display='none';return;}
+  mt.style.display='block';
+  mt.innerHTML='<div style="font-size:13px;color:rgba(255,255,255,.7);margin-bottom:8px;font-weight:700">🏆 Top 3 Right Now</div>'+
+    sorted.map(([id,p],i)=>`
+      <div style="display:flex;gap:10px;align-items:center;padding:6px 0">
+        <span style="font-size:16px">${['🥇','🥈','🥉'][i]}</span>
+        <span style="flex:1;font-weight:600;font-size:14px">${p.name}</span>
+        <span style="font-weight:700;color:#F9A825">${p.score.toLocaleString()}</span>
+      </div>`).join('');
+}
+function nextQuestion(){
+  if(!quizState||!activeQuiz)return;
+  const next=quizState.currentQ+1;
+  if(next>=activeQuiz.questions.length){finishQuiz();}
+  else{
+    quizState.currentQ=next;quizState.timeLeft=activeQuiz.questions[next].time;quizState.answered=null;quizState.phase='question';
+    document.getElementById('q-answerbars').style.display='none';
+    document.getElementById('q-minitop').style.display='none';
+    renderQuizQuestion();startTimer();
+  }
+}
+function finishQuiz(){
+  clearInterval(timerInterval);
+  const finalScore=quizState.score;
+  if(!quizState.isLive){
+    const entry={quiz:activeQuiz.name,score:finalScore,date:new Date().toISOString().split('T')[0]};
+    users=users.map(u=>u.id===currentUser.id?{...u,scores:[...u.scores,entry],totalScore:u.totalScore+finalScore}:u);
+    currentUser=users.find(u=>u.id===currentUser.id);
+    // Supabase sync
+    const sb=getSupabase();
+    if(sb&&currentUser.supabaseId){
+      sb.from('scores').insert([{user_id:currentUser.supabaseId,quiz_id:activeQuiz.id,quiz_name:activeQuiz.name,score:finalScore,played_at:new Date().toISOString()}]);
+      sb.from('profiles').update({total_score:currentUser.totalScore}).eq('id',currentUser.supabaseId);
+    }
+  }
+  const correct=quizState.results.filter(r=>r.correct).length;
+  const total=quizState.results.length;
+  const pct=Math.round((correct/total)*100);
+  document.getElementById('qd-icon').textContent=pct>=80?'🏆':pct>=60?'🥈':'📖';
+  document.getElementById('qd-score').textContent=finalScore.toLocaleString();
+  document.getElementById('qd-stats').innerHTML=[['✅ Correct',`${correct}/${total}`],['🎯 Accuracy',`${pct}%`],['⚡ Earned',finalScore.toLocaleString()]].map(([l,v])=>`
+    <div style="background:rgba(255,255,255,.15);border-radius:12px;padding:14px">
+      <div style="font-size:12px;opacity:.8">${l}</div>
+      <div style="font-weight:800;font-size:20px">${v}</div>
+    </div>`).join('');
+  // Final board for live games
+  if(quizState.isLive){
+    document.getElementById('qd-liveboard').style.display='block';
+    const sorted=Object.entries(liveGame.players||{}).sort((a,b)=>b[1].score-a[1].score);
+    document.getElementById('qd-liveboardinner').innerHTML=sorted.slice(0,5).map(([id,p],i)=>`
+      <div class="lb-row ${i===0?'first':i===1?'second':i===2?'third':''}">
+        <span style="font-size:18px">${['🥇','🥈','🥉'][i]||'#'+(i+1)}</span>
+        <span style="flex:1;font-weight:700">${p.name}</span>
+        <span style="color:#F9A825;font-weight:800">${p.score.toLocaleString()}</span>
+      </div>`).join('');
+  } else {
+    document.getElementById('qd-liveboard').style.display='none';
+  }
+  document.getElementById('qd-breakdown').innerHTML=quizState.results.map((r,i)=>`
+    <div style="display:flex;justify-content:space-between;padding:8px 12px;background:rgba(255,255,255,.1);border-radius:8px;margin-bottom:6px;font-size:13px">
+      <span style="opacity:.9">Q${i+1}: ${r.q.substring(0,42)}…</span>
+      <span style="font-weight:700;color:${r.correct?'#F9A825':'#ff8a80'}">${r.correct?'+'+r.earned:'0'}</span>
+    </div>`).join('');
+  goTo('s-quizdone');
+}
+
+// =====================================================================
+//  ADMIN
+// =====================================================================
+function renderAdminDashboard(){
+  const lb=getLeaderboard(),app=getApproved(),pend=getPending(),flag=getFlagged(),all=users.filter(u=>u.role==='contestant');
+  const avg=app.length>0?Math.round(app.reduce((s,u)=>s+u.totalScore,0)/app.length):0;
+  document.getElementById('a-dashboard').innerHTML=`
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:12px;margin-bottom:18px">
+      ${[['👥 Contestants',all.length,'var(--primary)'],['✅ Approved',app.length,'var(--success)'],['⏳ Pending',pend.length,'var(--warning)'],['⚠️ Flagged',flag.length,'var(--danger)'],['📖 Quizzes',quizzes.length,'var(--secondary)'],['⭐ Avg Score',avg.toLocaleString(),'#F9A825']].map(([l,v,c])=>`
+        <div class="card" style="text-align:center;border-top:4px solid ${c}">
+          <div style="font-size:12px;color:var(--muted);font-weight:600">${l}</div>
+          <div style="font-size:28px;font-weight:800;color:${c}">${v}</div>
+        </div>`).join('')}
+    </div>
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:16px;margin-bottom:16px">
+      <div class="card">
+        <div style="font-weight:700;font-size:15px;color:var(--primary);margin-bottom:10px">🏆 Top 5 Scores</div>
+        <div style="position:relative;height:220px"><canvas id="ch-top5"></canvas></div>
+      </div>
+      <div class="card">
+        <div style="font-weight:700;font-size:15px;color:var(--primary);margin-bottom:10px">👥 User Status</div>
+        <div style="position:relative;height:220px"><canvas id="ch-status"></canvas></div>
+      </div>
+      <div class="card">
+        <div style="font-weight:700;font-size:15px;color:var(--primary);margin-bottom:10px">📈 Avg Score / Quiz</div>
+        <div style="position:relative;height:220px"><canvas id="ch-trend"></canvas></div>
+      </div>
+    </div>
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:14px">
+      <div class="card">
+        <div style="font-weight:700;font-size:15px;color:var(--primary);margin-bottom:12px">🎯 Performance Meters</div>
+        <div style="display:flex;justify-content:space-around">
+          ${makeSpeedo(app.length,Math.max(all.length,1),'Approval Rate','var(--primary)')}
+          ${makeSpeedo(app.filter(u=>u.scores.length>0).length,Math.max(app.length,1),'Participation','var(--secondary)')}
+        </div>
+      </div>
+      <div class="card">
+        <div style="font-weight:700;font-size:15px;color:var(--primary);margin-bottom:10px">⚠️ Flagged Users</div>
+        ${flag.length===0?'<div style="color:var(--muted);font-size:14px">No flagged users 🎉</div>':flag.map(u=>`
+          <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid var(--border);font-size:13px">
+            <div><div style="font-weight:600">${u.name}</div><div style="color:var(--muted)">${u.email}</div></div>
+            <span class="badge" style="background:#fde8e8;color:var(--danger)">Duplicate ⚠️</span>
+          </div>`).join('')}
+      </div>
+    </div>`;
+  setTimeout(()=>{
+    const top5=lb.slice(0,5);
+    if(document.getElementById('ch-top5')&&window.Chart){
+      destroyChart('ch-top5');
+      adminCharts['ch-top5']=new Chart(document.getElementById('ch-top5'),{type:'bar',data:{labels:top5.map(u=>u.name.split(' ')[0]),datasets:[{label:'Score',data:top5.map(u=>u.totalScore),backgroundColor:['#F9A825','#1a7a4a','#1565C0','#00897B','#6A1B9A'],borderRadius:8}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{y:{grid:{color:'#f0f0f0'}}}}});
+    }
+    if(document.getElementById('ch-status')&&window.Chart){
+      destroyChart('ch-status');
+      adminCharts['ch-status']=new Chart(document.getElementById('ch-status'),{type:'doughnut',data:{labels:['Approved','Pending','Flagged'],datasets:[{data:[app.length,pend.length,flag.length],backgroundColor:['#1a7a4a','#F57F17','#C62828'],borderWidth:0}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:'bottom'}},cutout:'65%'}});
+    }
+    if(document.getElementById('ch-trend')&&window.Chart){
+      destroyChart('ch-trend');
+      adminCharts['ch-trend']=new Chart(document.getElementById('ch-trend'),{type:'line',data:{labels:quizzes.map(q=>q.date),datasets:[{label:'Avg Score',data:quizzes.map(q=>{const sc=app.flatMap(u=>u.scores.filter(s=>s.quiz===q.name).map(s=>s.score));return sc.length>0?Math.round(sc.reduce((a,b)=>a+b,0)/sc.length):0;}),borderColor:'#1a7a4a',backgroundColor:'rgba(26,122,74,.15)',fill:true,tension:.4,pointRadius:6,pointBackgroundColor:'#1a7a4a'}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{y:{grid:{color:'#f0f0f0'}}}}});
+    }
+  },100);
+}
+function destroyChart(id){const c=Chart.getChart(document.getElementById(id));if(c)c.destroy();}
+
+function renderAdminUsers(){
+  const all=users.filter(u=>u.role==='contestant');
+  document.getElementById('a-users').innerHTML=`
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;flex-wrap:wrap;gap:10px">
+      <div style="font-weight:800;font-size:20px;color:var(--primary)">👥 User Management</div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap">
+        <input type="text" id="usr-search" placeholder="🔍 Search..." style="width:180px" oninput="filterUsers()"/>
+        <button class="gbtn" onclick="bulkApproveAll()" style="padding:8px 16px;font-size:13px;background:var(--success)">✅ Approve All Pending</button>
+      </div>
+    </div>
+    <div class="card" style="overflow-x:auto">
+      <table style="width:100%;border-collapse:collapse;font-size:13px" id="usr-table">
+        <thead>
+          <tr style="background:#e8f5e9">
+            <th style="padding:10px 8px;text-align:left;color:var(--primary)"><input type="checkbox" id="chk-all" onchange="toggleAllPending(this)"/></th>
+            ${['Name','Email','Phone','Join Date','Bank','Status','Action'].map(h=>`<th style="padding:10px 8px;text-align:left;font-weight:700;color:var(--primary)">${h}</th>`).join('')}
+          </tr>
+        </thead>
+        <tbody id="usr-tbody"></tbody>
+      </table>
+    </div>`;
+  renderUserRows(all);
+}
+function renderUserRows(list){
+  document.getElementById('usr-tbody').innerHTML=list.map((u,i)=>`
+    <tr style="background:${i%2===0?'#fff':'#f9fffe'};border-bottom:1px solid var(--border)">
+      <td style="padding:10px 8px">${u.status==='pending'?`<input type="checkbox" class="pend-chk" value="${u.id}"/>`:'—'}</td>
+      <td style="padding:10px 8px;font-weight:600">${u.name}${u.flagged?` <span class="badge" style="background:#fde8e8;color:var(--danger);font-size:10px">⚠️ FLAG</span>`:''}</td>
+      <td style="padding:10px 8px;color:var(--muted)">${u.email}</td>
+      <td style="padding:10px 8px">${u.phone}</td>
+      <td style="padding:10px 8px;color:var(--muted)">${u.joinDate}</td>
+      <td style="padding:10px 8px;font-size:12px">${u.bank.bankName}</td>
+      <td style="padding:10px 8px"><span class="badge" style="background:${u.status==='approved'?'#e8f5e9':u.status==='pending'?'#fff8e1':'#fde8e8'};color:${u.status==='approved'?'var(--success)':u.status==='pending'?'var(--warning)':'var(--danger)'}">${u.status}</span></td>
+      <td style="padding:10px 8px">${u.status==='pending'?`<button class="gbtn" onclick="approveUser(${u.id})" style="padding:6px 12px;font-size:12px;background:var(--success)">Approve</button>`:''}</td>
+    </tr>`).join('');
+}
+function filterUsers(){
+  const q=document.getElementById('usr-search').value.toLowerCase();
+  const list=users.filter(u=>u.role==='contestant'&&(u.name.toLowerCase().includes(q)||u.email.toLowerCase().includes(q)));
+  renderUserRows(list);
+}
+function approveUser(id){
+  users=users.map(u=>u.id===id?{...u,status:'approved'}:u);
+  const sb=getSupabase();
+  if(sb){sb.from('profiles').update({status:'approved'}).eq('id',id);}
+  notify('User approved!');renderAdminUsers();
+}
+function bulkApproveAll(){
+  const chks=document.querySelectorAll('.pend-chk:checked');
+  const ids=chks.length>0?[...chks].map(c=>+c.value):getPending().map(u=>u.id);
+  if(ids.length===0)return notify('No pending users','warning');
+  users=users.map(u=>ids.includes(u.id)?{...u,status:'approved'}:u);
+  const sb=getSupabase();
+  if(sb){sb.from('profiles').update({status:'approved'}).in('id',ids);}
+  notify(`${ids.length} user(s) approved!`);renderAdminUsers();
+}
+function toggleAllPending(cb){document.querySelectorAll('.pend-chk').forEach(c=>c.checked=cb.checked);}
+
+function renderAdminQuizzes(){
+  document.getElementById('a-quizzes').innerHTML=`
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">
+      <div style="font-weight:800;font-size:20px;color:var(--primary)">🎯 Quiz Management</div>
+    </div>
+    <div class="card" style="margin-bottom:18px">
+      <div style="font-weight:700;font-size:16px;color:var(--primary);margin-bottom:14px">➕ Create New Quiz</div>
+      <div style="display:grid;grid-template-columns:2fr 1fr;gap:10px;margin-bottom:10px">
+        <input type="text" id="nq-name" placeholder="Quiz name..."/>
+        <select id="nq-type"><option value="major">Major Quiz</option><option value="devotional">Daily Devotional</option></select>
+      </div>
+      <div style="background:#f0faf4;border-radius:12px;padding:14px;margin-bottom:10px">
+        <div style="font-weight:700;font-size:14px;margin-bottom:10px;color:var(--primary)">Add Question</div>
+        <input type="text" id="nq-qtext" placeholder="Question text..." style="margin-bottom:8px"/>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px">
+          ${[0,1,2,3].map(i=>`<div style="display:flex;gap:6px;align-items:center"><input type="radio" name="nq-correct" value="${i}" ${i===0?'checked':''}/><input type="text" id="nq-opt${i}" placeholder="Option ${i+1}" style="flex:1;border-color:${OPT_COLORS[i]}88"/></div>`).join('')}
+        </div>
+        <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center">
+          <select id="nq-time" style="width:auto">${[10,15,20,30,45,60].map(t=>`<option value="${t}"${t===20?' selected':''}>${t}s</option>`).join('')}</select>
+          <select id="nq-pts" style="width:auto"><option value="500">500 pts</option><option value="1000" selected>1000 pts</option><option value="2000">2000 pts</option></select>
+          <button class="gbtn" onclick="addNQQuestion()" style="padding:8px 16px;font-size:13px;background:var(--teal)">+ Add Question</button>
+        </div>
+      </div>
+      <div id="nq-qlist" style="margin-bottom:12px;font-size:13px;color:var(--muted)"></div>
+      <button class="gbtn" onclick="publishQuiz()" style="padding:13px 28px;font-size:15px;background:linear-gradient(135deg,var(--primary),var(--primaryDk))">🚀 Publish Quiz</button>
+    </div>
+    <div style="font-weight:700;font-size:16px;color:var(--primary);margin-bottom:10px">Existing Quizzes</div>
+    ${quizzes.map(q=>`
+      <div class="card" style="margin-bottom:10px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px">
+        <div>
+          <div style="font-weight:700;font-size:15px">${q.name}</div>
+          <div style="font-size:12px;color:var(--muted);margin-top:3px">${q.questions.length} questions · ${q.date} · Host: ${q.host}</div>
+        </div>
+        <div style="display:flex;gap:8px">
+          <span class="badge" style="background:${q.type==='devotional'?'#e0f2f1':'#f3e5f5'};color:${q.type==='devotional'?'var(--teal)':'#6A1B9A'}">${q.type}</span>
+          <button class="gbtn" onclick="hostCreateSession(${q.id});aTab('a-livehost',document.querySelectorAll('#s-admin .tab-btn')[3])" style="padding:6px 12px;font-size:12px;background:var(--primary)">🎮 Go Live</button>
+        </div>
+      </div>`).join('')}`;
+  window._nqQuestions=[];
+}
+function addNQQuestion(){
+  const text=document.getElementById('nq-qtext').value.trim();
+  const opts=[0,1,2,3].map(i=>document.getElementById('nq-opt'+i).value.trim());
+  const correct=+document.querySelector('input[name="nq-correct"]:checked').value;
+  const time=+document.getElementById('nq-time').value;
+  const points=+document.getElementById('nq-pts').value;
+  if(!text||opts.some(o=>!o))return notify('Fill all question fields','error');
+  if(!window._nqQuestions)window._nqQuestions=[];
+  window._nqQuestions.push({id:window._nqQuestions.length+1,text,options:opts,correct,time,points});
+  document.getElementById('nq-qlist').innerHTML=`<strong>${window._nqQuestions.length} question(s):</strong><br>`+window._nqQuestions.map((q,i)=>`• Q${i+1}: ${q.text}`).join('<br>');
+  document.getElementById('nq-qtext').value='';
+  [0,1,2,3].forEach(i=>document.getElementById('nq-opt'+i).value='');
+  notify('Question added ✓');
+}
+async function publishQuiz(){
+  const name=document.getElementById('nq-name').value.trim();
+  const type=document.getElementById('nq-type').value;
+  if(!name)return notify('Enter quiz name','error');
+  if(!window._nqQuestions||window._nqQuestions.length===0)return notify('Add at least one question','error');
+  const newQuiz={id:quizzes.length+1,name,questions:window._nqQuestions,type,status:'live',date:new Date().toISOString().split('T')[0],host:currentUser.name};
+  quizzes.push(newQuiz);
+  const sb=getSupabase();
+  if(sb){
+    const {data}=await sb.from('quizzes').insert([{name,type,questions:window._nqQuestions,host_id:currentUser.supabaseId,status:'live',created_at:new Date().toISOString()}]).select().single();
+    if(data)newQuiz.supabaseId=data.id;
+  }
+  notify('Quiz published! 🎉');
+  window._nqQuestions=[];
+  renderAdminQuizzes();
+}
+
+function renderAdminLeaderboard(){
+  const lb=getLeaderboard();
+  document.getElementById('a-leaderboard').innerHTML=`
+    <div style="font-weight:800;font-size:20px;color:var(--primary);margin-bottom:14px">🏆 Global Leaderboard</div>
+    <div class="card" style="overflow-x:auto">
+      <table style="width:100%;border-collapse:collapse;font-size:13px">
+        <thead><tr style="background:#e8f5e9">
+          ${['Rank','Name','Email','Total Score','Quizzes','Avg/Quiz','Progress'].map(h=>`<th style="padding:11px 8px;text-align:left;font-weight:700;color:var(--primary)">${h}</th>`).join('')}
+        </tr></thead>
+        <tbody>${lb.map((u,i)=>`
+          <tr style="background:${i%2===0?'#fff':'#f9fffe'};border-bottom:1px solid var(--border)">
+            <td style="padding:11px 8px"><div style="width:30px;height:30px;border-radius:50%;background:${i===0?'#F9A825':i===1?'#C0C0C0':i===2?'#CD7F32':'var(--border)'};display:flex;align-items:center;justify-content:center;font-weight:800;font-size:13px;color:${i<3?'var(--brown)':'var(--muted)'}">#${i+1}</div></td>
+            <td style="padding:11px 8px;font-weight:700">${u.name}</td>
+            <td style="padding:11px 8px;color:var(--muted)">${u.email}</td>
+            <td style="padding:11px 8px"><div style="font-weight:800;color:var(--primary);font-size:16px">${u.totalScore.toLocaleString()}</div><div style="height:5px;background:#e8f5e9;border-radius:3px;margin-top:4px;width:120px"><div style="width:${Math.round((u.totalScore/(lb[0]?.totalScore||1))*100)}%;height:100%;background:${i===0?'#F9A825':'var(--primary)'};border-radius:3px"></div></div></td>
+            <td style="padding:11px 8px">${u.scores.length}</td>
+            <td style="padding:11px 8px">${u.scores.length>0?Math.round(u.totalScore/u.scores.length).toLocaleString():0}</td>
+            <td style="padding:11px 8px"><span class="badge" style="background:#e8f5e9;color:var(--success)">Active</span></td>
+          </tr>`).join('')}
+        </tbody>
+      </table>
+    </div>`;
+}
+
+function renderAdminReports(){
+  const lb=getLeaderboard(),app=getApproved();
+  document.getElementById('a-reports').innerHTML=`
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;flex-wrap:wrap;gap:10px">
+      <div style="font-weight:800;font-size:20px;color:var(--primary)">📊 Performance Reports</div>
+      <button class="gbtn" onclick="exportPerformance()" style="padding:10px 20px;font-size:14px;background:var(--primary)">⬇️ Download Full CSV</button>
+    </div>
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:14px;margin-bottom:18px">
+      <div class="card" style="text-align:center">
+        <div style="font-weight:700;font-size:15px;color:var(--primary);margin-bottom:10px">📊 Engagement Meters</div>
+        <div style="display:flex;justify-content:space-around">
+          ${makeSpeedo(app.filter(u=>u.totalScore>1500).length,Math.max(app.length,1),'Top Scorers','#F9A825')}
+          ${makeSpeedo(app.filter(u=>u.scores.length>1).length,Math.max(app.length,1),'Repeat Players','var(--primary)')}
+        </div>
+      </div>
+      <div class="card">
+        <div style="font-weight:700;font-size:15px;color:var(--primary);margin-bottom:10px">📈 Quiz Avg Scores</div>
+        ${quizzes.map(q=>{const sc=app.flatMap(u=>u.scores.filter(s=>s.quiz===q.name).map(s=>s.score));const avg=sc.length>0?Math.round(sc.reduce((a,b)=>a+b,0)/sc.length):0;return`
+          <div style="margin-bottom:12px">
+            <div style="display:flex;justify-content:space-between;font-size:13px;margin-bottom:4px">
+              <span style="font-weight:600">${q.name.substring(0,26)}…</span><span style="color:var(--primary);font-weight:700">${avg}</span>
+            </div>
+            <div style="height:7px;background:#e8f5e9;border-radius:4px"><div style="width:${Math.round(avg/1500*100)}%;height:100%;background:var(--secondary);border-radius:4px"></div></div>
+          </div>`}).join('')}
+      </div>
+    </div>
+    <div class="card" style="overflow-x:auto">
+      <div style="font-weight:700;font-size:15px;color:var(--primary);margin-bottom:12px">Full Contestant Report</div>
+      <table style="width:100%;border-collapse:collapse;font-size:13px">
+        <thead><tr style="background:#e8f5e9">
+          ${['Rank','Name','Email','Total Score','Quizzes','Avg/Quiz','Joined'].map(h=>`<th style="padding:10px 8px;text-align:left;font-weight:700;color:var(--primary)">${h}</th>`).join('')}
+        </tr></thead>
+        <tbody>${lb.map((u,i)=>`
+          <tr style="background:${i%2===0?'#fff':'#f9fffe'};border-bottom:1px solid var(--border)">
+            <td style="padding:10px 8px;font-weight:800;color:${i===0?'#F9A825':'var(--primary)'}">#${i+1}</td>
+            <td style="padding:10px 8px;font-weight:600">${u.name}</td>
+            <td style="padding:10px 8px;color:var(--muted)">${u.email}</td>
+            <td style="padding:10px 8px;font-weight:700;color:var(--primary)">${u.totalScore.toLocaleString()}</td>
+            <td style="padding:10px 8px">${u.scores.length}</td>
+            <td style="padding:10px 8px">${u.scores.length>0?Math.round(u.totalScore/u.scores.length).toLocaleString():0}</td>
+            <td style="padding:10px 8px;color:var(--muted)">${u.joinDate}</td>
+          </tr>`).join('')}
+        </tbody>
+      </table>
+    </div>`;
+}
+
+function renderAdminBank(){
+  const lb=getLeaderboard();
+  document.getElementById('a-bank').innerHTML=`
+    <div style="font-weight:800;font-size:20px;color:var(--primary);margin-bottom:6px">💳 Bank Account Export</div>
+    <div style="font-size:14px;color:var(--muted);margin-bottom:18px">Export bank details for prize disbursement. Ranked by total score.</div>
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px;margin-bottom:20px">
+      ${[['🥇 Top 50',50,'#F9A825'],['🥈 Top 100',100,'var(--primary)'],['🥉 Top 200',200,'var(--secondary)'],['📋 All Users',null,'var(--teal)']].map(([label,n,color])=>`
+        <div class="card" style="text-align:center;border-top:4px solid ${color};cursor:pointer" onclick="exportBank(${n})">
+          <div style="font-size:26px;margin-bottom:6px">⬇️</div>
+          <div style="font-weight:700;font-size:14px;color:${color}">${label}</div>
+          <div style="font-size:12px;color:var(--muted);margin-top:3px">${n?Math.min(n,lb.length):lb.length} accounts</div>
+          <span class="badge" style="background:${color}22;color:${color};margin-top:8px;display:inline-block">Download CSV</span>
+        </div>`).join('')}
+    </div>
+    <div class="card" style="overflow-x:auto">
+      <div style="font-weight:700;font-size:15px;color:var(--primary);margin-bottom:12px">Account Preview (Top ${Math.min(5,lb.length)})</div>
+      <table style="width:100%;border-collapse:collapse;font-size:13px">
+        <thead><tr style="background:#e8f5e9">
+          ${['Rank','Name','Account Name','Bank','Account No.','Score'].map(h=>`<th style="padding:10px 8px;text-align:left;font-weight:700;color:var(--primary)">${h}</th>`).join('')}
+        </tr></thead>
+        <tbody>${lb.slice(0,5).map((u,i)=>`
+          <tr style="background:${i%2===0?'#fff':'#f9fffe'};border-bottom:1px solid var(--border)">
+            <td style="padding:10px 8px;font-weight:800;color:${i===0?'#F9A825':'var(--primary)'}">#${i+1}</td>
+            <td style="padding:10px 8px;font-weight:600">${u.name}</td>
+            <td style="padding:10px 8px">${u.bank.name}</td>
+            <td style="padding:10px 8px">${u.bank.bankName}</td>
+            <td style="padding:10px 8px;font-family:monospace">${u.bank.accountNumber}</td>
+            <td style="padding:10px 8px;font-weight:700;color:var(--primary)">${u.totalScore.toLocaleString()}</td>
+          </tr>`).join('')}
+        </tbody>
+      </table>
+    </div>`;
+}
+
+// =====================================================================
+//  CSV EXPORTS
+// =====================================================================
+function exportCSV(data,filename){
+  const keys=Object.keys(data[0]);
+  const rows=[keys.join(','),...data.map(row=>keys.map(k=>`"${String(row[k]||'').replace(/"/g,'""')}"`).join(','))];
+  const blob=new Blob([rows.join('\n')],{type:'text/csv'});
+  const url=URL.createObjectURL(blob);
+  const a=document.createElement('a');a.href=url;a.download=filename;a.click();
+  notify('CSV downloaded! ✓');
+}
+function exportPerformance(){
+  exportCSV(getLeaderboard().map((u,i)=>({Rank:i+1,Name:u.name,Email:u.email,Phone:u.phone,TotalScore:u.totalScore,QuizzesTaken:u.scores.length,AvgScore:u.scores.length>0?Math.round(u.totalScore/u.scores.length):0,JoinDate:u.joinDate,BankName:u.bank.bankName})),'lmtw_performance_report.csv');
+}
+function exportBank(n){
+  const lb=getLeaderboard();
+  const target=n?lb.slice(0,n):lb;
+  exportCSV(target.map((u,i)=>({Rank:i+1,AccountName:u.bank.name,BankName:u.bank.bankName,AccountNumber:u.bank.accountNumber,ContestantName:u.name,Email:u.email,TotalScore:u.totalScore})),`lmtw_bank_details_top${n||'all'}.csv`);
+}
+
+// enter key on login
+document.getElementById('li-pass').addEventListener('keydown',e=>{if(e.key==='Enter')doLogin();});
+</script>
+</body>
+</html>
