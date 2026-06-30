@@ -1,0 +1,295 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>Hosting Guide — Lead Me To The Waters</title>
+<style>
+  :root{
+    --deep:#0a1a0f;
+    --green:#0f5233;
+    --green-lt:#1a7a4a;
+    --blue:#1565C0;
+    --gold:#F9A825;
+    --gold-dk:#e65100;
+    --cream:#f6fbf4;
+    --ink:#0c2417;
+    --muted:rgba(246,251,244,.62);
+    --line:rgba(246,251,244,.14);
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html{scroll-behavior:smooth}
+  body{
+    font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;
+    background:var(--deep);
+    color:var(--cream);
+    overflow-x:hidden;
+  }
+
+  .river-bg{
+    position:fixed;inset:0;z-index:0;pointer-events:none;
+    background:
+      radial-gradient(ellipse 700px 500px at 85% 10%, rgba(249,168,37,.18), transparent 60%),
+      radial-gradient(ellipse 600px 800px at 10% 35%, rgba(21,101,192,.32), transparent 55%),
+      radial-gradient(ellipse 800px 600px at 70% 85%, rgba(26,122,74,.4), transparent 60%),
+      var(--deep);
+  }
+
+  .hero{
+    position:relative;z-index:1;min-height:88vh;display:flex;flex-direction:column;
+    align-items:center;justify-content:center;text-align:center;padding:40px 20px;
+  }
+  .hero .crest{
+    width:70px;height:70px;border-radius:50%;
+    background:radial-gradient(circle at 35% 30%, var(--gold), var(--gold-dk));
+    display:flex;align-items:center;justify-content:center;font-size:30px;margin-bottom:22px;
+    box-shadow:0 0 0 8px rgba(249,168,37,.12), 0 10px 30px rgba(0,0,0,.45);
+    opacity:0;animation:rise .7s ease forwards 0s, bob 3.2s ease-in-out infinite 1s;
+  }
+  @keyframes bob{0%,100%{transform:translateY(0)}50%{transform:translateY(-8px)}}
+  .hero .eyebrow{font-size:12px;letter-spacing:5px;text-transform:uppercase;color:var(--gold);font-weight:800;margin-bottom:18px;opacity:0;animation:rise .7s ease forwards .1s}
+  .hero h1{
+    font-size:clamp(36px,7.5vw,70px);font-weight:900;line-height:1.04;letter-spacing:-1px;
+    background:linear-gradient(135deg,#ffffff 30%,var(--gold) 100%);-webkit-background-clip:text;background-clip:text;color:transparent;
+    opacity:0;animation:rise .8s ease forwards .25s;
+  }
+  .hero .sub{margin-top:18px;max-width:560px;font-size:clamp(15px,2.4vw,19px);color:var(--muted);line-height:1.6;opacity:0;animation:rise .8s ease forwards .42s}
+  @keyframes rise{from{opacity:0;transform:translateY(18px)}to{opacity:1;transform:translateY(0)}}
+  .scroll-cue{position:absolute;bottom:34px;left:50%;transform:translateX(-50%);font-size:11px;letter-spacing:3px;color:var(--muted);text-transform:uppercase;display:flex;flex-direction:column;align-items:center;gap:8px;opacity:0;animation:rise .8s ease forwards .8s}
+  .scroll-cue .arrow{width:1px;height:26px;background:linear-gradient(var(--gold),transparent);animation:flow 1.6s ease-in-out infinite}
+  @keyframes flow{0%{transform:scaleY(0);transform-origin:top}50%{transform:scaleY(1);transform-origin:top}51%{transform-origin:bottom}100%{transform:scaleY(0);transform-origin:bottom}}
+
+  .stream-wrap{position:relative;z-index:1;max-width:980px;margin:0 auto;padding:20px 24px 80px}
+  .stream-svg{position:absolute;left:50%;top:0;width:4px;height:100%;transform:translateX(-50%);z-index:0}
+  .stream-svg path{stroke:url(#riverGrad2);stroke-width:4;fill:none;stroke-linecap:round}
+
+  .stage{position:relative;display:grid;grid-template-columns:1fr 64px 1fr;align-items:center;margin:0 0 64px}
+  .stage:last-child{margin-bottom:0}
+  .stage .card{
+    background:linear-gradient(160deg, rgba(255,255,255,.05), rgba(255,255,255,.02));
+    border:1px solid var(--line);backdrop-filter:blur(6px);border-radius:18px;padding:24px 26px;
+    opacity:0;transform:translateY(28px);transition:opacity .7s ease, transform .7s ease;
+  }
+  .stage.visible .card{opacity:1;transform:translateY(0)}
+  .stage:nth-child(odd) .card{grid-column:1}
+  .stage:nth-child(even) .card{grid-column:3}
+  .stage:nth-child(odd){justify-items:start}
+  .stage:nth-child(even){justify-items:end}
+  .stage .node{
+    grid-column:2;width:54px;height:54px;border-radius:50%;
+    background:radial-gradient(circle at 35% 30%, var(--gold), var(--gold-dk));
+    display:flex;align-items:center;justify-content:center;font-weight:900;font-size:18px;color:var(--ink);
+    box-shadow:0 0 0 6px rgba(249,168,37,.12), 0 8px 24px rgba(0,0,0,.4);
+    transform:scale(.4);opacity:0;transition:transform .5s cubic-bezier(.34,1.56,.64,1), opacity .5s ease;z-index:2;
+  }
+  .stage.visible .node{transform:scale(1);opacity:1}
+  .stage .label{font-size:11px;letter-spacing:3px;text-transform:uppercase;color:var(--gold);font-weight:800;margin-bottom:8px}
+  .stage h3{font-size:clamp(19px,3vw,24px);font-weight:800;margin-bottom:10px;color:#fff}
+  .stage p{font-size:14.5px;line-height:1.65;color:var(--muted)}
+
+  @media (max-width:720px){
+    .stage{grid-template-columns:54px 1fr;gap:16px}
+    .stage .node{grid-column:1}
+    .stage:nth-child(odd) .card,.stage:nth-child(even) .card{grid-column:2;justify-self:stretch}
+    .stage:nth-child(odd),.stage:nth-child(even){justify-items:stretch}
+    .stream-svg{left:27px}
+  }
+
+  /* ---------- signature: PIN + lobby fill demo ---------- */
+  .pin-demo{position:relative;z-index:1;max-width:560px;margin:0 auto 70px;padding:0 24px;text-align:center}
+  .pin-demo .tag{font-size:11px;letter-spacing:4px;text-transform:uppercase;color:var(--gold);font-weight:800;margin-bottom:10px}
+  .pin-demo h2{font-size:clamp(24px,4vw,32px);font-weight:900;margin-bottom:8px}
+  .pin-demo .note{color:var(--muted);font-size:14px;margin-bottom:30px}
+  .pin-box{
+    font-weight:900;font-size:clamp(38px,9vw,58px);letter-spacing:10px;color:var(--gold);
+    background:rgba(255,255,255,.06);border:2px solid rgba(249,168,37,.3);border-radius:20px;
+    padding:18px 26px;display:inline-block;margin-bottom:24px;
+    text-shadow:0 0 24px rgba(249,168,37,.4);
+  }
+  .chips{display:flex;flex-wrap:wrap;gap:8px;justify-content:center;min-height:38px}
+  .chip{
+    background:rgba(255,255,255,.1);border:1px solid var(--line);border-radius:30px;padding:7px 16px;
+    font-weight:700;font-size:13px;opacity:0;transform:scale(.4);
+    animation:pop .4s cubic-bezier(.34,1.56,.64,1) forwards;
+  }
+  @keyframes pop{to{opacity:1;transform:scale(1)}}
+
+  /* ---------- toggle row demo (mirrors actual settings UI) ---------- */
+  .settings-demo{
+    background:rgba(255,255,255,.05);border:1px solid var(--line);border-radius:16px;
+    padding:16px 20px;margin-top:24px;text-align:left;
+  }
+  .toggle-row{display:flex;justify-content:space-between;align-items:center;padding:10px 0}
+  .toggle-row+.toggle-row{border-top:1px solid var(--line)}
+  .toggle-row .t-label{font-size:13.5px;font-weight:700}
+  .toggle-row .t-desc{font-size:11.5px;color:var(--muted);margin-top:2px}
+  .switch{
+    width:42px;height:24px;border-radius:14px;background:rgba(255,255,255,.18);position:relative;cursor:pointer;
+    border:none;flex-shrink:0;transition:background .2s;
+  }
+  .switch::after{content:'';position:absolute;top:3px;left:3px;width:18px;height:18px;border-radius:50%;background:#fff;transition:transform .2s}
+  .switch.on{background:linear-gradient(135deg,var(--gold),var(--gold-dk))}
+  .switch.on::after{transform:translateX(18px)}
+
+  footer{position:relative;z-index:1;text-align:center;padding:40px 20px 60px;color:var(--muted);font-size:13px}
+  footer .heart{color:var(--gold)}
+</style>
+</head>
+<body>
+
+<div class="river-bg"></div>
+
+<section class="hero">
+  <div class="crest">⚙️</div>
+  <div class="eyebrow">Admin Guide</div>
+  <h1>Hosting Guide</h1>
+  <p class="sub">How to build quizzes, run live games, and manage your community in Lead&nbsp;Me&nbsp;To&nbsp;The&nbsp;Waters.</p>
+  <div class="scroll-cue">Scroll<div class="arrow"></div></div>
+</section>
+
+<section class="stream-wrap">
+  <svg class="stream-svg" preserveAspectRatio="none">
+    <defs>
+      <linearGradient id="riverGrad2" x1="0" y1="0" x2="0" y2="1">
+        <stop offset="0%" stop-color="#F9A825"/>
+        <stop offset="50%" stop-color="#1a7a4a"/>
+        <stop offset="100%" stop-color="#1565C0"/>
+      </linearGradient>
+    </defs>
+    <path d="M2,0 L2,2000"/>
+  </svg>
+
+  <div class="stage" data-n="1">
+    <div class="card">
+      <div class="label">Step One</div>
+      <h3>Build your quiz</h3>
+      <p>In the Quizzes tab, add a name, then build out each question — options, the correct answer, a time limit, and points awarded.</p>
+    </div>
+    <div class="node">1</div>
+  </div>
+
+  <div class="stage" data-n="2">
+    <div class="card">
+      <div class="label">Step Two</div>
+      <h3>Open Live Host</h3>
+      <p>Head to Live Host, choose the quiz you want to run, and tap Host Live to generate a fresh 6‑digit PIN for this session.</p>
+    </div>
+    <div class="node">2</div>
+  </div>
+
+  <div class="stage" data-n="3">
+    <div class="card">
+      <div class="label">Step Three</div>
+      <h3>Manage the lobby</h3>
+      <p>Share the PIN out loud or on screen. Watch players' names appear live as they join, and start the game once enough are in.</p>
+    </div>
+    <div class="node">3</div>
+  </div>
+
+  <div class="stage" data-n="4">
+    <div class="card">
+      <div class="label">Step Four</div>
+      <h3>Launch each question</h3>
+      <p>Questions display with a countdown. Watch the live answer bars fill in as players respond, right up until time runs out.</p>
+    </div>
+    <div class="node">4</div>
+  </div>
+
+  <div class="stage" data-n="5">
+    <div class="card">
+      <div class="label">Step Five</div>
+      <h3>Reveal the podium</h3>
+      <p>The correct answer highlights, and the live top‑5 podium appears for everyone — your screen and every player's screen — instantly.</p>
+    </div>
+    <div class="node">5</div>
+  </div>
+
+  <div class="stage" data-n="6">
+    <div class="card">
+      <div class="label">Step Six</div>
+      <h3>Fine-tune the game</h3>
+      <p>Open Settings to randomize question or answer order, switch sound effects and lobby music on or off, or enable autoplay to host hands‑free.</p>
+      <div class="settings-demo">
+        <div class="toggle-row">
+          <div><div class="t-label">Sound effects</div><div class="t-desc">Countdown ticks, correct/wrong chimes</div></div>
+          <button class="switch on" id="sw1" onclick="this.classList.toggle('on')"></button>
+        </div>
+        <div class="toggle-row">
+          <div><div class="t-label">Background music</div><div class="t-desc">Lobby music while players join</div></div>
+          <button class="switch on" id="sw2" onclick="toggleMusicSwitch(this)"></button>
+        </div>
+      </div>
+    </div>
+    <div class="node">6</div>
+  </div>
+
+  <div class="stage" data-n="7">
+    <div class="card">
+      <div class="label">Step Seven</div>
+      <h3>Wrap up the game</h3>
+      <p>After the final question, results save automatically. Review scores anytime in Reports or the Leaderboard tab.</p>
+    </div>
+    <div class="node">7</div>
+  </div>
+
+  <div class="stage" data-n="8">
+    <div class="card">
+      <div class="label">Ongoing</div>
+      <h3>Manage your community</h3>
+      <p>Approve new contestants, keep an eye on flagged duplicate accounts, and export bank details for prize disbursement from the admin dashboard.</p>
+    </div>
+    <div class="node">8</div>
+  </div>
+</section>
+
+<!-- SIGNATURE: PIN + lobby fill -->
+<section class="pin-demo">
+  <div class="tag">What Players See When You Host</div>
+  <h2>Your PIN brings the room together</h2>
+  <p class="note">Share it once — players fill the lobby in real time.</p>
+  <div class="pin-box">482917</div>
+  <div class="chips" id="chips"></div>
+</section>
+
+<footer>Lead Me To The Waters <span class="heart">·</span> Admin Guide</footer>
+
+<script>
+const stages = document.querySelectorAll('.stage');
+const io = new IntersectionObserver((entries)=>{
+  entries.forEach(e=>{ if(e.isIntersecting){ e.target.classList.add('visible'); io.unobserve(e.target); } });
+}, { threshold: 0.3 });
+stages.forEach(s=>io.observe(s));
+
+// Animate lobby chips popping in when the PIN demo scrolls into view
+const names = ['Grace 🙏','Samuel 🙏','Blessing 🙏','Emmanuel 🙏','Chioma 🙏','Ruth 🙏'];
+const chipsHost = document.getElementById('chips');
+let chipsPlayed = false;
+const chipIo = new IntersectionObserver((entries)=>{
+  entries.forEach(e=>{
+    if(e.isIntersecting && !chipsPlayed){
+      chipsPlayed = true;
+      names.forEach((n,i)=>{
+        setTimeout(()=>{
+          const c = document.createElement('div');
+          c.className = 'chip';
+          c.textContent = n;
+          chipsHost.appendChild(c);
+        }, i*260);
+      });
+    }
+  });
+}, { threshold: 0.4 });
+chipIo.observe(document.querySelector('.pin-demo'));
+
+// Background music toggle demo previews the real hardcoded track
+const audio = new Audio('lobby-music.mp3');
+audio.loop = true;
+audio.volume = 0.3;
+function toggleMusicSwitch(btn){
+  btn.classList.toggle('on');
+  if(btn.classList.contains('on')){ audio.play().catch(()=>{}); }
+  else { audio.pause(); }
+}
+</script>
+</body>
+</html>

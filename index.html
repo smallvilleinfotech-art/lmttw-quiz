@@ -149,6 +149,10 @@ html,body{overflow-x:hidden;max-width:100vw}
 </style>
 </head>
 <body>
+<!-- Hardcoded lobby background music/sound — toggled via startLobbyMusic()/stopLobbyMusic() -->
+<audio id="lobbyMusicAudio" loop preload="auto" style="display:none">
+  <source src="lobby-music.mp3" type="audio/mpeg">
+</audio>
 <div class="notif" id="notif"></div>
 
 <!-- ==================== LANDING ==================== -->
@@ -249,6 +253,7 @@ html,body{overflow-x:hidden;max-width:100vw}
       <div id="gl-players" style="display:flex;flex-wrap:wrap;gap:8px;min-height:50px"></div>
     </div>
     <div id="gl-status" style="font-size:13px;color:rgba(255,255,255,.5)" class="pulse">Waiting for host to start...</div>
+    <button class="lobby-music-toggle" onclick="toggleLobbyMusicButton()" aria-pressed="true" style="margin-top:18px;background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.25);color:#fff;border-radius:30px;padding:8px 18px;font-size:13px;font-weight:700;cursor:pointer">🔊 Music</button>
   </div>
 </div>
 
@@ -353,6 +358,7 @@ html,body{overflow-x:hidden;max-width:100vw}
     </div>
     <div style="display:flex;align-items:center;gap:10px">
       <div id="c-username" style="color:#fff;font-weight:700;font-size:13px"></div>
+      <a href="player-walkthrough.html" target="_blank" rel="noopener" class="gbtn" style="padding:7px 14px;font-size:12px;background:rgba(255,255,255,.2);text-decoration:none;color:#fff">📘 Guide</a>
       <button class="gbtn" onclick="doLogout()" style="padding:7px 14px;font-size:12px;background:rgba(255,255,255,.2)">Logout</button>
     </div>
   </div>
@@ -410,6 +416,7 @@ html,body{overflow-x:hidden;max-width:100vw}
     </div>
     <div style="display:flex;gap:10px;align-items:center">
       <span style="background:#F9A825;color:#5D4037;border-radius:20px;padding:4px 12px;font-size:12px;font-weight:700">⚙️ Admin</span>
+      <a href="admin-walkthrough.html" target="_blank" rel="noopener" class="gbtn" style="padding:7px 14px;font-size:12px;background:rgba(255,255,255,.2);text-decoration:none;color:#fff">📘 Guide</a>
       <button class="gbtn" onclick="doLogout()" style="padding:7px 14px;font-size:12px;background:rgba(255,255,255,.2)">Logout</button>
     </div>
   </div>
@@ -440,6 +447,7 @@ html,body{overflow-x:hidden;max-width:100vw}
     <div style="display:flex;gap:10px;align-items:center">
       <div id="lh-pin" style="background:rgba(249,168,37,.2);border:1px solid rgba(249,168,37,.4);border-radius:20px;padding:6px 16px;font-weight:800;font-size:14px;color:#F9A825;letter-spacing:4px"></div>
       <div id="lh-playercount" style="background:rgba(255,255,255,.1);border-radius:20px;padding:6px 14px;font-weight:700;font-size:13px;color:#fff">👥 0</div>
+      <button class="gbtn lobby-music-toggle" onclick="toggleLobbyMusicButton()" aria-pressed="true" title="Toggle lobby music" style="background:rgba(255,255,255,.1);padding:6px 12px;font-size:13px;font-weight:700">🔊 Music</button>
       <button class="gbtn" onclick="openLiveSettings()" title="Settings" style="background:rgba(255,255,255,.1);padding:6px 12px;font-size:15px">⚙️</button>
     </div>
   </div>
@@ -743,16 +751,36 @@ function sfxWrong(){ playTone(220,.25,'sawtooth',.15); playTone(174,.3,'sawtooth
 function sfxJoin(){ playTone(660,.1,'sine',.12); playTone(880,.12,'sine',.12,.08); }
 function sfxFanfare(){ [523,659,784,1046].forEach((f,i)=>playTone(f,.3,'triangle',.2,i*.12)); }
 function sfxCountdownStart(){ playTone(440,.15,'square',.12); }
-let _musicTimer=null;
-function startLobbyMusic(){
-  stopLobbyMusic();
-  if(!musicOn())return;
-  const notes=[392,440,494,523,587,523,494,440]; // light, upbeat, royalty-free pentatonic-ish loop
-  let i=0;
-  const ctx=actx(); if(!ctx)return;
-  _musicTimer=setInterval(()=>{ if(!musicOn()){stopLobbyMusic();return;} playTone(notes[i%notes.length],.35,'sine',.06); i++; },400);
+// Real hardcoded lobby track (lobby-music.mp3, sits next to index.html), driven
+// by the same musicOn()/liveGame.settings.music toggle used everywhere else.
+function lobbyAudioEl(){ return document.getElementById('lobbyMusicAudio'); }
+function syncMusicToggleButtons(){
+  const on=musicOn();
+  document.querySelectorAll('.lobby-music-toggle').forEach(b=>{
+    b.textContent=on?'🔊 Music':'🔇 Music';
+    b.setAttribute('aria-pressed',on?'true':'false');
+  });
 }
-function stopLobbyMusic(){ if(_musicTimer){clearInterval(_musicTimer);_musicTimer=null;} }
+function startLobbyMusic(){
+  syncMusicToggleButtons();
+  if(!musicOn())return;
+  const el=lobbyAudioEl(); if(!el)return;
+  el.volume=0.32;
+  el.play().catch(()=>{}); // autoplay may be blocked until a tap; the toggle button covers that
+}
+function stopLobbyMusic(){
+  const el=lobbyAudioEl(); if(el){el.pause();}
+  syncMusicToggleButtons();
+}
+// Lets a player (or host) flip music on/off for their own device without
+// opening the full settings modal — used by the lobby screens.
+function toggleLobbyMusicButton(){
+  toggleLiveSetting('music');
+  // toggleLiveSetting only starts/stops music itself when liveGame.phase==='lobby';
+  // make sure it actually starts/stops here too, since a player's local liveGame.phase
+  // may not reflect the host's true phase.
+  if(musicOn())startLobbyMusic(); else stopLobbyMusic();
+}
 
 // =====================================================================
 //  LIVE GAME SETTINGS MODAL
@@ -936,7 +964,15 @@ async function loadAllData(){
 
   // Load all scores
   const {data:scores,error:sErr}=await sb.from('scores').select('*');
-  if(sErr) console.warn('scores load error',sErr);
+  if(sErr){
+    console.warn('scores load error',sErr);
+    // This table needs to be readable by every signed-in user (not just the row
+    // owner) for leaderboards, podiums, and reports to show everyone's data —
+    // surface it clearly to an admin instead of leaderboards just looking empty.
+    if(currentUser&&currentUser.role==='admin'){
+      notify('Scores failed to load (check the "scores" table RLS policy) — leaderboards/reports will be incomplete','error');
+    }
+  }
 
   // Load all quizzes
   const {data:qdata,error:qErr}=await sb.from('quizzes').select('*').order('created_at',{ascending:false});
@@ -1172,6 +1208,7 @@ function enterLobby(){
   document.getElementById('gl-pinnum').textContent=myPlayerSession.pin;
   goTo('s-gamelobby');
   renderLobbyPlayers();
+  startLobbyMusic();
 }
 let lobbyInterval=null;
 function renderLobbyPlayers(){
@@ -1188,6 +1225,7 @@ function renderLobbyPlayers(){
         document.getElementById('gl-players').innerHTML=list.map(p=>`<div class="player-chip">🙏 ${p.nickname}</div>`).join('');
       } else if(session.phase==='question'){
         clearInterval(lobbyInterval);
+        stopLobbyMusic();
         myPlayerSession.currentQ=session.current_question;
         startLiveQuizAsPlayer();
       }
@@ -1199,12 +1237,14 @@ function renderLobbyPlayers(){
         document.getElementById('gl-players').innerHTML=players.map(p=>`<div class="player-chip">🙏 ${p.name}</div>`).join('');
       } else if(liveGame.phase==='question'){
         clearInterval(lobbyInterval);
+        stopLobbyMusic();
         startLiveQuizAsPlayer();
       }
     }
   },1500);
 }
 function startLiveQuizAsPlayer(){
+  stopLobbyMusic();
   const qz=quizzes.find(q=>q.id===myPlayerSession.quizId);
   if(!qz)return;
   activeQuiz=qz;
@@ -1524,9 +1564,15 @@ async function checkAllAnsweredAndAdvance(sessionId){
     hostRevealAnswers();
   }
 }
+let _playerRealtimeChannel=null;
 function subscribeToGameAsPlayer(sessionId){
   const sb=getSupabase();if(!sb)return;
-  sb.channel('player-'+sessionId)
+  // Avoid stacking duplicate subscriptions if this is called more than once
+  // for the same session (e.g. on resume/reconnect) — a stale channel can
+  // silently swallow later realtime events, which is what makes the podium
+  // intermittently fail to appear on a player's screen.
+  if(_playerRealtimeChannel){ try{ sb.removeChannel(_playerRealtimeChannel); }catch(e){} _playerRealtimeChannel=null; }
+  _playerRealtimeChannel=sb.channel('player-'+sessionId+'-'+Date.now())
     .on('postgres_changes',{event:'UPDATE',schema:'public',table:'live_sessions',filter:`id=eq.${sessionId}`},(payload)=>{
       const s=payload.new;
       if(s.phase==='question'&&myPlayerSession.currentQ<s.current_question){
