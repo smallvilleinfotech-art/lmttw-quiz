@@ -149,6 +149,17 @@ html,body{overflow-x:hidden;max-width:100vw}
 </style>
 </head>
 <body>
+<!-- Lobby background music — looping track played in the game lobby, toggled by the host's Music setting -->
+<audio id="bg-lobby-music" src="lobby-music.mp3" loop preload="auto"></audio>
+
+<!-- In-app walkthrough guide overlay — loads the role-specific usage guide -->
+<div id="guide-modal" style="display:none;position:fixed;inset:0;z-index:99999;background:#0a1a0f">
+  <button onclick="closeGuide()" aria-label="Close guide"
+    style="position:fixed;top:14px;right:14px;z-index:100000;width:40px;height:40px;border-radius:50%;border:none;
+    background:rgba(255,255,255,.15);color:#fff;font-size:18px;cursor:pointer;backdrop-filter:blur(4px)">✕</button>
+  <iframe id="guide-frame" src="" title="App guide" style="width:100%;height:100%;border:none;display:block"></iframe>
+</div>
+
 <div class="notif" id="notif"></div>
 
 <!-- ==================== LANDING ==================== -->
@@ -353,6 +364,7 @@ html,body{overflow-x:hidden;max-width:100vw}
     </div>
     <div style="display:flex;align-items:center;gap:10px">
       <div id="c-username" style="color:#fff;font-weight:700;font-size:13px"></div>
+      <button class="gbtn" onclick="openGuide('player')" title="How to play" style="padding:7px 12px;font-size:12px;background:rgba(255,255,255,.2)">❓ Guide</button>
       <button class="gbtn" onclick="doLogout()" style="padding:7px 14px;font-size:12px;background:rgba(255,255,255,.2)">Logout</button>
     </div>
   </div>
@@ -410,6 +422,7 @@ html,body{overflow-x:hidden;max-width:100vw}
     </div>
     <div style="display:flex;gap:10px;align-items:center">
       <span style="background:#F9A825;color:#5D4037;border-radius:20px;padding:4px 12px;font-size:12px;font-weight:700">⚙️ Admin</span>
+      <button class="gbtn" onclick="openGuide('admin')" title="Hosting guide" style="padding:7px 12px;font-size:12px;background:rgba(255,255,255,.2)">❓ Guide</button>
       <button class="gbtn" onclick="doLogout()" style="padding:7px 14px;font-size:12px;background:rgba(255,255,255,.2)">Logout</button>
     </div>
   </div>
@@ -718,8 +731,10 @@ let currentUser=null, activeQuiz=null, quizState=null, timerInterval=null;
 let adminCharts={};
 
 // =====================================================================
-//  SOUND ENGINE — synthesized "quiz excitement" SFX & music via WebAudio
-//  (no external audio files needed, so it works offline / on any host)
+//  SOUND ENGINE — SFX via WebAudio (synthesized, no files needed) +
+//  lobby background music via the hardcoded lobby-music.mp3 track,
+//  with a synthesized jingle as automatic fallback if that file is
+//  ever missing or blocked from autoplaying.
 // =====================================================================
 let _actx=null;
 function actx(){ if(!_actx){ const C=window.AudioContext||window.webkitAudioContext; if(C)_actx=new C(); } return _actx; }
@@ -744,15 +759,35 @@ function sfxJoin(){ playTone(660,.1,'sine',.12); playTone(880,.12,'sine',.12,.08
 function sfxFanfare(){ [523,659,784,1046].forEach((f,i)=>playTone(f,.3,'triangle',.2,i*.12)); }
 function sfxCountdownStart(){ playTone(440,.15,'square',.12); }
 let _musicTimer=null;
+let _lobbyAudioFailed=false; // true once we know the real file can't play, so we stop retrying and just use the jingle fallback
+function lobbyAudioEl(){ return document.getElementById('bg-lobby-music'); }
 function startLobbyMusic(){
   stopLobbyMusic();
   if(!musicOn())return;
-  const notes=[392,440,494,523,587,523,494,440]; // light, upbeat, royalty-free pentatonic-ish loop
+  const el=lobbyAudioEl();
+  if(el&&!_lobbyAudioFailed){
+    el.volume=0.35;
+    el.currentTime=0;
+    const playPromise=el.play();
+    if(playPromise&&playPromise.catch){
+      playPromise.catch(()=>{ _lobbyAudioFailed=true; startSynthLobbyJingle(); });
+    }
+    return;
+  }
+  startSynthLobbyJingle();
+}
+function startSynthLobbyJingle(){
+  // Fallback only: a light synthesized loop, used if the real audio file is missing or can't play (e.g. blocked autoplay)
+  const notes=[392,440,494,523,587,523,494,440];
   let i=0;
   const ctx=actx(); if(!ctx)return;
   _musicTimer=setInterval(()=>{ if(!musicOn()){stopLobbyMusic();return;} playTone(notes[i%notes.length],.35,'sine',.06); i++; },400);
 }
-function stopLobbyMusic(){ if(_musicTimer){clearInterval(_musicTimer);_musicTimer=null;} }
+function stopLobbyMusic(){
+  if(_musicTimer){clearInterval(_musicTimer);_musicTimer=null;}
+  const el=lobbyAudioEl();
+  if(el&&!el.paused){el.pause();el.currentTime=0;}
+}
 
 // =====================================================================
 //  LIVE GAME SETTINGS MODAL
@@ -849,6 +884,19 @@ function notify(msg,type="success"){
   el.style.background=type==="error"?"#C62828":type==="warning"?"#F57F17":"#2e7d32";
   el.classList.add('show');
   setTimeout(()=>el.classList.remove('show'),3200);
+}
+// In-app walkthrough — opens the role-specific usage guide in an overlay.
+// The guide files (player-walkthrough.html / admin-walkthrough.html) ship
+// alongside index.html, lobby-music.mp3 included, so they work whether
+// embedded here or opened on their own.
+function openGuide(which){
+  const frame=document.getElementById('guide-frame');
+  frame.src=(which==='admin'?'admin-walkthrough.html':'player-walkthrough.html');
+  document.getElementById('guide-modal').style.display='block';
+}
+function closeGuide(){
+  document.getElementById('guide-modal').style.display='none';
+  document.getElementById('guide-frame').src='';
 }
 function goTo(id){
   document.querySelectorAll('.screen').forEach(s=>{s.classList.remove('active');s.style.display='';});
@@ -1009,6 +1057,7 @@ function afterLogin(){
   notify(`Welcome back, ${currentUser.name}! 🙏`);
 }
 function doLogout(){
+  stopPlayerPhasePoll();
   if(liveGame.realtimeSub){
     const sb=getSupabase();
     if(sb)sb.removeChannel(liveGame.realtimeSub);
@@ -1125,6 +1174,7 @@ function confirmJoin(){
   myPlayerSession.playerId='p_'+Date.now()+'_'+Math.random().toString(36).slice(2,6);
   myPlayerSession.score=0;
   myPlayerSession.currentQ=0;
+  myPlayerSession._lastPhaseSig=null;
   const sb=getSupabase();
   if(sb){
     sb.auth.signInAnonymously().then(({data:authData,error:authErr})=>{
@@ -1200,6 +1250,7 @@ function renderLobbyPlayers(){
       } else if(liveGame.phase==='question'){
         clearInterval(lobbyInterval);
         startLiveQuizAsPlayer();
+        startPlayerPhasePoll();
       }
     }
   },1500);
@@ -1394,6 +1445,7 @@ async function hostRevealAnswers(){
   });
   const sb=getSupabase();
   let players=[];
+  liveGame.phase='podium'; // mirror the DB/host state locally so the player-side poll fallback (and local/offline mode) can pick this up too
   if(sb){
     await sb.from('live_sessions').update({phase:'podium'}).eq('id',liveGame.sessionId);
     const {data}=await sb.from('live_players').select('nickname,score,auth_uid').eq('session_id',liveGame.sessionId).order('score',{ascending:false});
@@ -1524,30 +1576,62 @@ async function checkAllAnsweredAndAdvance(sessionId){
     hostRevealAnswers();
   }
 }
+// Single source of truth for "what should the player's screen show right now",
+// driven either by a Supabase realtime push OR by the poll fallback below.
+// De-duped via a phase+question signature so calling it twice with the same
+// state is a harmless no-op (this is what makes the poll safe to run
+// alongside the realtime subscription).
+function handlePhaseUpdate(s){
+  if(!s)return;
+  const sig=s.phase+':'+s.current_question;
+  if(myPlayerSession._lastPhaseSig===sig)return;
+  myPlayerSession._lastPhaseSig=sig;
+  if(s.phase==='question'&&myPlayerSession.currentQ<s.current_question){
+    myPlayerSession.currentQ=s.current_question;
+    if(quizState){
+      const qList=liveGame.questionsOverride||(activeQuiz&&activeQuiz.questions)||[];
+      quizState.currentQ=s.current_question;
+      quizState.timeLeft=qList[s.current_question]?qList[s.current_question].time:quizState.timeLeft;
+      quizState.answered=null;
+      quizState.phase='question';
+      renderQuizQuestion();
+      startTimer();
+      goTo('s-quiz');
+    }
+  } else if(s.phase==='question'&&myPlayerSession.currentQ===0&&quizState===null){
+    startLiveQuizAsPlayer();
+  } else if(s.phase==='podium'){
+    clearInterval(timerInterval);
+    showPodiumAsPlayer(s.current_question);
+  } else if(s.phase==='done'){
+    finishQuiz();
+    stopPlayerPhasePoll();
+  }
+}
+// Poll fallback: realtime websockets can silently drop a message (or never
+// connect at all in local/offline mode, where there is no DB to push from),
+// which is what previously left players stuck on their last question while
+// the host had already moved on to the podium. Polling every 1.5s guarantees
+// every player's screen eventually catches up even if a push is missed.
+let _playerPhasePoll=null;
+function startPlayerPhasePoll(){
+  stopPlayerPhasePoll();
+  _playerPhasePoll=setInterval(async()=>{
+    const sb=getSupabase();
+    if(sb&&myPlayerSession.sessionId){
+      const{data}=await sb.from('live_sessions').select('phase,current_question').eq('id',myPlayerSession.sessionId).single();
+      if(data)handlePhaseUpdate(data);
+    } else if(!sb){
+      handlePhaseUpdate({phase:liveGame.phase,current_question:liveGame.currentQ});
+    }
+  },1500);
+}
+function stopPlayerPhasePoll(){ if(_playerPhasePoll){clearInterval(_playerPhasePoll);_playerPhasePoll=null;} }
 function subscribeToGameAsPlayer(sessionId){
   const sb=getSupabase();if(!sb)return;
   sb.channel('player-'+sessionId)
     .on('postgres_changes',{event:'UPDATE',schema:'public',table:'live_sessions',filter:`id=eq.${sessionId}`},(payload)=>{
-      const s=payload.new;
-      if(s.phase==='question'&&myPlayerSession.currentQ<s.current_question){
-        myPlayerSession.currentQ=s.current_question;
-        if(quizState){
-          quizState.currentQ=s.current_question;
-          quizState.timeLeft=activeQuiz.questions[s.current_question].time;
-          quizState.answered=null;
-          quizState.phase='question';
-          renderQuizQuestion();
-          startTimer();
-          goTo('s-quiz');
-        }
-      } else if(s.phase==='question'&&myPlayerSession.currentQ===0&&quizState===null){
-        startLiveQuizAsPlayer();
-      } else if(s.phase==='podium'){
-        clearInterval(timerInterval);
-        showPodiumAsPlayer(s.current_question);
-      } else if(s.phase==='done'){
-        finishQuiz();
-      }
+      handlePhaseUpdate(payload.new);
     })
     .on('postgres_changes',{event:'UPDATE',schema:'public',table:'live_players',filter:`session_id=eq.${sessionId}`},(payload)=>{
       updateLiveHud(sessionId);
@@ -1556,6 +1640,7 @@ function subscribeToGameAsPlayer(sessionId){
   // Also poll answered-count so the player's own "waiting" view can react
   // even when host UI computes counts client-side
   updateLiveHud(sessionId);
+  startPlayerPhasePoll();
 }
 async function updateLiveHud(sessionId){
   const sb=getSupabase();if(!sb)return;
@@ -1837,6 +1922,7 @@ function renderContestantProfile(){
       </div>`).join('');
 }
 function postQuizDone(){
+  stopPlayerPhasePoll();
   const wasFromDashboard=myPlayerSession.fromDashboard;
   clearPersistedSession();
   if(myPlayerSession.pin&&!wasFromDashboard){
