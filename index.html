@@ -269,6 +269,7 @@ tr:hover{background:#f0fff4!important}
   </div>
   <div style="background:var(--primaryDk);display:flex;overflow-x:auto;gap:0">
     <button class="tab-btn active" onclick="cTab('c-overview',this)">🏠 Overview</button>
+    <button class="tab-btn" onclick="cTab('c-joinlive',this)">🎮 Join Live</button>
     <button class="tab-btn" onclick="cTab('c-quizzes',this)">🎯 Quizzes</button>
     <button class="tab-btn" onclick="cTab('c-leaderboard',this)">🏆 Leaderboard</button>
     <button class="tab-btn" onclick="cTab('c-profile',this)">👤 Profile</button>
@@ -281,6 +282,15 @@ tr:hover{background:#f0fff4!important}
         <div id="c-speedos" style="display:flex;justify-content:space-around;flex-wrap:wrap;gap:16px"></div>
       </div>
       <div class="card" id="c-recentscores"></div>
+    </div>
+    <div id="c-joinlive" style="display:none">
+      <div class="card" style="background:linear-gradient(135deg,var(--secondary),var(--teal));text-align:center;padding:32px 20px">
+        <div style="font-size:40px;margin-bottom:10px">🎮</div>
+        <div style="font-family:'Fredoka One',cursive;font-size:20px;color:#fff;margin-bottom:6px">Have a Game PIN?</div>
+        <div style="font-size:13px;color:rgba(255,255,255,.85);margin-bottom:18px">Enter the 6-digit PIN shared by your host to join a live quiz</div>
+        <input type="text" id="cl-pin-input" placeholder="Enter PIN..." maxlength="6" style="max-width:260px;margin:0 auto 14px;display:block;text-align:center;font-size:20px;letter-spacing:4px;font-weight:700"/>
+        <button class="gbtn" onclick="joinByPinFromContestant()" style="padding:12px 32px;font-size:15px;background:#F9A825;color:#5D4037">Join Game →</button>
+      </div>
     </div>
     <div id="c-quizzes" style="display:none">
       <div style="font-weight:800;font-size:18px;color:var(--primary);margin-bottom:14px">Available Quizzes</div>
@@ -474,7 +484,7 @@ function goTo(id){
   if(id==='s-livehost')el.style.display='block';
 }
 function cTab(id,btn){
-  ['c-overview','c-quizzes','c-leaderboard','c-profile'].forEach(t=>{
+  ['c-overview','c-joinlive','c-quizzes','c-leaderboard','c-profile'].forEach(t=>{
     const el=document.getElementById(t);if(el)el.style.display='none';
   });
   document.getElementById(id).style.display='block';
@@ -637,6 +647,32 @@ function doRegister(){
 // =====================================================================
 //  PIN JOIN FLOW  (Contestant)
 // =====================================================================
+function joinByPinFromContestant(){
+  const pin=document.getElementById('cl-pin-input').value.trim();
+  if(pin.length!==6||!/^\d+$/.test(pin))return notify('Enter a valid 6-digit PIN','error');
+  const sb=getSupabase();
+  if(!sb){notify('Database not configured','error');return;}
+  sb.from('live_sessions').select('*,quizzes(name)').eq('pin',pin).eq('phase','lobby').single().then(({data,error})=>{
+    if(error||!data)return notify('No active game with that PIN','error');
+    myPlayerSession.pin=pin;
+    myPlayerSession.quizId=data.quiz_id;
+    myPlayerSession.sessionId=data.id;
+    myPlayerSession.nickname=currentUser.name;
+    myPlayerSession.playerId='p_'+Date.now()+'_'+Math.random().toString(36).slice(2,6);
+    myPlayerSession.authUid=currentUser.supabaseId;
+    myPlayerSession.score=0;
+    myPlayerSession.currentQ=0;
+    myPlayerSession.fromDashboard=true; // flag so we return to contestant dashboard, not landing page
+    sb.from('live_players').insert([{
+      session_id:data.id,auth_uid:currentUser.supabaseId,player_id:myPlayerSession.playerId,
+      nickname:currentUser.name,score:0
+    }]).then(({error:joinErr})=>{
+      if(joinErr){notify('Could not join game: '+joinErr.message,'error');return;}
+      enterLobby();
+      subscribeToGameAsPlayer(data.id);
+    });
+  });
+}
 function joinByPin(){
   const pin=document.getElementById('pin-input').value.trim();
   if(pin.length!==6||!/^\d+$/.test(pin))return notify('Enter a valid 6-digit PIN','error');
@@ -1113,10 +1149,12 @@ function renderContestantProfile(){
       </div>`).join('');
 }
 function postQuizDone(){
-  if(myPlayerSession.pin){
+  const wasFromDashboard=myPlayerSession.fromDashboard;
+  if(myPlayerSession.pin&&!wasFromDashboard){
     myPlayerSession={pin:null,nickname:null,playerId:null,authUid:null,score:0,currentQ:0,quizId:null,sessionId:null};
     goTo('s-landing');
   } else {
+    myPlayerSession={pin:null,nickname:null,playerId:null,authUid:null,score:0,currentQ:0,quizId:null,sessionId:null};
     goContestant();
   }
 }
