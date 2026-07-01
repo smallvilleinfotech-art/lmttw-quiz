@@ -442,14 +442,14 @@ let users = [
   {id:8,name:"Ruth Amara",email:"ruth@test.com",password:"test123",role:"contestant",status:"approved",bank:{name:"Ruth Amara",bankName:"Kuda Bank",accountNumber:"0890123456"},scores:[{quiz:"Daily Devotional - May",score:680,date:"2024-05-20"},{quiz:"Major Quiz 1",score:1100,date:"2024-05-15"}],totalScore:1780,joinDate:"2024-04-28",phone:"08089012345",flagged:false},
 ];
 let quizzes=[
-  {id:1,name:"Major Quiz 1 - Book of John",questions:[
+  {id:"demo-1",name:"Major Quiz 1 - Book of John",questions:[
     {id:1,text:"Who led the Israelites out of Egypt?",options:["Abraham","Moses","David","Joshua"],correct:1,time:20,points:1000},
     {id:2,text:"How many days did God take to create the world?",options:["5 days","6 days","7 days","10 days"],correct:1,time:15,points:1000},
     {id:3,text:"What was the garden where Adam and Eve lived?",options:["Garden of Gethsemane","Garden of Eden","Garden of Olives","Paradise Garden"],correct:1,time:20,points:1000},
     {id:4,text:"Which psalm begins 'The Lord is my shepherd'?",options:["Psalm 22","Psalm 91","Psalm 23","Psalm 1"],correct:2,time:20,points:1000},
     {id:5,text:"How many books are in the New Testament?",options:["27","39","66","24"],correct:0,time:15,points:1000}
   ],type:"major",status:"completed",date:"2024-05-15",host:"Admin User"},
-  {id:2,name:"Daily Devotional - May",questions:[
+  {id:"demo-2",name:"Daily Devotional - May",questions:[
     {id:1,text:"What does John 3:16 teach us?",options:["God's love for the world","The Ten Commandments","The Sermon on the Mount","The Lord's Prayer"],correct:0,time:15,points:500},
     {id:2,text:"'I can do all things through _____ who strengthens me'",options:["Moses","David","Christ","The Holy Spirit"],correct:2,time:20,points:500},
     {id:3,text:"Which fruit of the Spirit comes first in Galatians 5:22?",options:["Peace","Love","Joy","Kindness"],correct:1,time:15,points:500}
@@ -579,9 +579,28 @@ function doLogin(){
 async function afterLogin(){
   await fetchOwnScores();
   await refreshUsersFromDB();
+  await refreshQuizzesFromDB();
   if(currentUser.role==='admin'){goTo('s-admin');renderAdminDashboard();}
   else{goTo('s-contestant');renderContestantOverview();}
   notify(`Welcome back, ${currentUser.name}! 🙏`);
+}
+
+// Pulls the real, published quizzes from Supabase (each with a real uuid
+// id) so hosting/playing them references an actual row in the `quizzes`
+// table. The two starter "demo-1"/"demo-2" quizzes only ever appear when
+// Supabase isn't configured (offline/local-only mode) — once real quizzes
+// exist in the database they replace the demo ones entirely.
+async function refreshQuizzesFromDB(){
+  const sb=getSupabase();
+  if(!sb)return; // no Supabase configured -> keep local demo quizzes
+  try{
+    const {data,error}=await sb.from('quizzes').select('*').order('created_at',{ascending:false});
+    if(error){notify('Could not load quizzes: '+error.message,'error');return;}
+    quizzes=(data||[]).map(q=>({
+      id:q.id,supabaseId:q.id,name:q.name,questions:q.questions,type:q.type||'major',
+      status:q.status||'live',date:(q.created_at||'').split('T')[0]||'',host:q.host_name||''
+    }));
+  }catch(e){notify('Could not sync quizzes: '+e.message,'error');}
 }
 
 // =====================================================================
@@ -651,6 +670,7 @@ async function refreshUsersFromDB(){
 }
 async function refreshAndRender(renderFnName){
   await refreshUsersFromDB();
+  await refreshQuizzesFromDB();
   if(typeof window[renderFnName]==='function')window[renderFnName]();
   notify('Data refreshed ✓');
 }
@@ -983,17 +1003,21 @@ window.addEventListener('DOMContentLoaded',restoreSession);
 // =====================================================================
 function renderAdminLiveHost(){
   document.getElementById('a-livehost').innerHTML=`
-    <div style="font-weight:800;font-size:20px;color:var(--primary);margin-bottom:6px">🎮 Live Game Host</div>
+    <div style="font-weight:800;font-size:20px;color:var(--primary);margin-bottom:6px;display:flex;justify-content:space-between;align-items:center">
+      <span>🎮 Live Game Host</span>
+      <button class="gbtn" onclick="refreshAndRender('renderAdminLiveHost')" style="padding:7px 14px;font-size:12px;background:var(--secondary)">🔄 Refresh Quizzes</button>
+    </div>
     <div style="font-size:14px;color:var(--muted);margin-bottom:18px">Create a live multiplayer quiz session with a shareable PIN. Up to 500 players.</div>
     <div class="card" style="margin-bottom:16px">
       <div style="font-weight:700;font-size:16px;color:var(--primary);margin-bottom:14px">Choose a quiz to host live</div>
+      ${quizzes.length===0?`<div style="color:var(--muted);font-size:14px;padding:10px 0">No quizzes yet. Go to the <strong>Quizzes</strong> tab to create and publish one first.</div>`:''}
       ${quizzes.map(q=>`
         <div style="display:flex;justify-content:space-between;align-items:center;padding:14px;border-radius:12px;border:1.5px solid var(--border);margin-bottom:10px;background:#f9fffe">
           <div>
             <div style="font-weight:700;font-size:15px">${q.name}</div>
             <div style="font-size:12px;color:var(--muted);margin-top:2px">${q.questions.length} questions · ${q.type}</div>
           </div>
-          <button class="gbtn" onclick="hostCreateSession(${q.id})" style="padding:10px 20px;font-size:14px;background:linear-gradient(135deg,var(--primary),var(--primaryDk))">
+          <button class="gbtn" onclick="hostCreateSession('${q.id}')" style="padding:10px 20px;font-size:14px;background:linear-gradient(135deg,var(--primary),var(--primaryDk))">
             🚀 Host Live
           </button>
         </div>`).join('')}
@@ -1463,7 +1487,7 @@ function renderContestantQuizzes(){
         </div>
         <div style="display:flex;gap:8px;align-items:center">
           <span class="badge" style="background:${q.type==='devotional'?'#e0f2f1':'#f3e5f5'};color:${q.type==='devotional'?'var(--teal)':'#6A1B9A'}">${q.type}</span>
-          <button class="gbtn" onclick="startQuiz(${q.id})" style="padding:8px 18px;font-size:13px;background:linear-gradient(135deg,var(--primary),var(--primaryDk))">▶ Play Solo</button>
+          <button class="gbtn" onclick="startQuiz('${q.id}')" style="padding:8px 18px;font-size:13px;background:linear-gradient(135deg,var(--primary),var(--primaryDk))">▶ Play Solo</button>
         </div>
       </div>
     </div>`).join('');
@@ -1863,6 +1887,7 @@ function renderAdminQuizzes(){
   document.getElementById('a-quizzes').innerHTML=`
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">
       <div style="font-weight:800;font-size:20px;color:var(--primary)">🎯 Quiz Management</div>
+      <button class="gbtn" onclick="refreshAndRender('renderAdminQuizzes')" style="padding:8px 14px;font-size:13px;background:var(--secondary)">🔄 Refresh</button>
     </div>
     <div class="card" style="margin-bottom:18px">
       <div style="font-weight:700;font-size:16px;color:var(--primary);margin-bottom:14px">➕ Create New Quiz</div>
@@ -1886,6 +1911,7 @@ function renderAdminQuizzes(){
       <button class="gbtn" onclick="publishQuiz()" style="padding:13px 28px;font-size:15px;background:linear-gradient(135deg,var(--primary),var(--primaryDk))">🚀 Publish Quiz</button>
     </div>
     <div style="font-weight:700;font-size:16px;color:var(--primary);margin-bottom:10px">Existing Quizzes</div>
+    ${quizzes.length===0?`<div style="color:var(--muted);font-size:14px;margin-bottom:10px">No quizzes published yet — create one above.</div>`:''}
     ${quizzes.map(q=>`
       <div class="card" style="margin-bottom:10px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px">
         <div>
@@ -1894,7 +1920,7 @@ function renderAdminQuizzes(){
         </div>
         <div style="display:flex;gap:8px">
           <span class="badge" style="background:${q.type==='devotional'?'#e0f2f1':'#f3e5f5'};color:${q.type==='devotional'?'var(--teal)':'#6A1B9A'}">${q.type}</span>
-          <button class="gbtn" onclick="hostCreateSession(${q.id});aTab('a-livehost',document.querySelectorAll('#s-admin .tab-btn')[3])" style="padding:6px 12px;font-size:12px;background:var(--primary)">🎮 Go Live</button>
+          <button class="gbtn" onclick="hostCreateSession('${q.id}');aTab('a-livehost',document.querySelectorAll('#s-admin .tab-btn')[3])" style="padding:6px 12px;font-size:12px;background:var(--primary)">🎮 Go Live</button>
         </div>
       </div>`).join('')}`;
   window._nqQuestions=[];
@@ -1918,12 +1944,13 @@ async function publishQuiz(){
   const type=document.getElementById('nq-type').value;
   if(!name)return notify('Enter quiz name','error');
   if(!window._nqQuestions||window._nqQuestions.length===0)return notify('Add at least one question','error');
-  const newQuiz={id:quizzes.length+1,name,questions:window._nqQuestions,type,status:'live',date:new Date().toISOString().split('T')[0],host:currentUser.name};
-  quizzes.push(newQuiz);
   const sb=getSupabase();
   if(sb){
-    const {data}=await sb.from('quizzes').insert([{name,type,questions:window._nqQuestions,host_id:currentUser.supabaseId,status:'live',created_at:new Date().toISOString()}]).select().single();
-    if(data)newQuiz.supabaseId=data.id;
+    const {data,error}=await sb.from('quizzes').insert([{name,type,questions:window._nqQuestions,host_id:currentUser.supabaseId,host_name:currentUser.name,status:'live',created_at:new Date().toISOString()}]).select().single();
+    if(error){notify('Could not publish quiz: '+error.message,'error');return;}
+    quizzes.push({id:data.id,supabaseId:data.id,name,questions:window._nqQuestions,type,status:'live',date:new Date().toISOString().split('T')[0],host:currentUser.name});
+  } else {
+    quizzes.push({id:'local-'+(quizzes.length+1),name,questions:window._nqQuestions,type,status:'live',date:new Date().toISOString().split('T')[0],host:currentUser.name});
   }
   notify('Quiz published! 🎉');
   window._nqQuestions=[];
