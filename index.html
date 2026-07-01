@@ -503,16 +503,16 @@ function goTo(id){
   if(id==='s-quizdone')el.style.display='block';
   if(id==='s-livehost')el.style.display='block';
 }
-function cTab(id,btn){
+async function cTab(id,btn){
   ['c-overview','c-quizzes','c-leaderboard','c-records','c-profile'].forEach(t=>{
     const el=document.getElementById(t);if(el)el.style.display='none';
   });
   document.getElementById(id).style.display='block';
   document.querySelectorAll('#s-contestant .tab-btn').forEach(b=>b.classList.remove('active'));
   btn.classList.add('active');
-  if(id==='c-overview')renderContestantOverview();
+  if(id==='c-overview'){await refreshUsersFromDB();renderContestantOverview();}
   if(id==='c-quizzes')renderContestantQuizzes();
-  if(id==='c-leaderboard')renderContestantLeaderboard();
+  if(id==='c-leaderboard'){await refreshUsersFromDB();renderContestantLeaderboard();}
   if(id==='c-records')renderContestantRecords();
   if(id==='c-profile')renderContestantProfile();
 }
@@ -576,10 +576,83 @@ function doLogin(){
     afterLogin();
   }
 }
-function afterLogin(){
+async function afterLogin(){
+  await fetchOwnScores();
+  await refreshUsersFromDB();
   if(currentUser.role==='admin'){goTo('s-admin');renderAdminDashboard();}
   else{goTo('s-contestant');renderContestantOverview();}
   notify(`Welcome back, ${currentUser.name}! 🙏`);
+}
+
+// =====================================================================
+//  REAL DATA SYNC  (replaces the hardcoded demo `users` seed with the
+//  actual registered contestants + their real scores once Supabase is
+//  configured — the demo array is only ever used as an offline fallback)
+// =====================================================================
+async function fetchOwnScores(){
+  const sb=getSupabase();
+  if(!sb||!currentUser||!currentUser.supabaseId)return;
+  try{
+    const {data}=await sb.from('scores').select('*').eq('user_id',currentUser.supabaseId);
+    currentUser.scores=(data||[]).map(s=>({quiz:s.quiz_name,score:s.score,date:(s.played_at||'').split('T')[0],breakdown:s.breakdown||null}));
+    currentUser.totalScore=(currentUser.total_score!=null)?currentUser.total_score:currentUser.scores.reduce((s,x)=>s+(x.score||0),0);
+  }catch(e){/* keep whatever we already had */}
+}
+function mapProfileToUser(p,sc){
+  return {
+    id:p.id,name:p.name||p.full_name||'Unnamed',email:p.email||'',
+    role:p.role||'contestant',status:p.status||'pending',
+    bank:{name:p.bank_name||p.name||'',bankName:p.bank_institution||'',accountNumber:p.bank_account||''},
+    scores:sc,totalScore:(p.total_score!=null)?p.total_score:sc.reduce((s,x)=>s+(x.score||0),0),
+    joinDate:(p.created_at||'').split('T')[0]||'',phone:p.phone||'',flagged:!!p.flagged,supabaseId:p.id
+  };
+}
+function mapCurrentUserToRow(){
+  const cu=currentUser;
+  return {
+    id:cu.id||cu.supabaseId,name:cu.name,email:cu.email||'',role:cu.role,status:cu.status,
+    bank:cu.bank||{name:'',bankName:'',accountNumber:''},
+    scores:cu.scores||[],totalScore:cu.totalScore||0,
+    joinDate:(cu.created_at||cu.joinDate||'').split('T')[0]||'',phone:cu.phone||'',
+    flagged:!!cu.flagged,supabaseId:cu.supabaseId
+  };
+}
+// Pulls the real, current list of users into the `users` array.
+//  - Admins get every contestant + their real scores (needs the admin-read
+//    RLS policy from the SQL script).
+//  - Regular contestants only get a name/score-only leaderboard (via the
+//    get_leaderboard() RPC) plus their own full record — this keeps other
+//    people's bank details and email addresses private.
+async function refreshUsersFromDB(){
+  const sb=getSupabase();
+  if(!sb||!currentUser)return; // no Supabase configured -> keep local demo data
+  try{
+    if(currentUser.role==='admin'){
+      const {data:profiles,error:perr}=await sb.from('profiles').select('*');
+      if(perr||!profiles){notify('Could not load users from database: '+(perr?perr.message:'unknown error'),'error');return;}
+      const {data:scoresRows}=await sb.from('scores').select('*');
+      const scoresByUser={};
+      (scoresRows||[]).forEach(s=>{
+        if(!scoresByUser[s.user_id])scoresByUser[s.user_id]=[];
+        scoresByUser[s.user_id].push({quiz:s.quiz_name,score:s.score,date:(s.played_at||'').split('T')[0],breakdown:s.breakdown||null});
+      });
+      users=profiles.map(p=>p.id===currentUser.supabaseId?mapCurrentUserToRow():mapProfileToUser(p,scoresByUser[p.id]||[]));
+    } else {
+      const {data:lb,error:lberr}=await sb.rpc('get_leaderboard');
+      const others=(lberr||!lb)?[]:lb.filter(r=>r.id!==currentUser.supabaseId).map(r=>({
+        id:r.id,name:r.name,email:'',role:'contestant',status:'approved',
+        bank:{name:'',bankName:'',accountNumber:''},
+        scores:new Array(r.quizzes_count||0).fill(null),
+        totalScore:r.total_score||0,joinDate:'',phone:'',flagged:false
+      }));
+      users=[...others,mapCurrentUserToRow()];
+    }
+  }catch(e){notify('Could not sync users: '+e.message,'error');}
+}
+async function refreshAndRender(renderFnName){
+  await refreshUsersFromDB();
+  if(typeof window[renderFnName]==='function')window[renderFnName]();
+  notify('Data refreshed ✓');
 }
 function doLogout(){
   // Unsubscribe realtime if active
@@ -1668,6 +1741,9 @@ function renderAdminDashboard(){
   const lb=getLeaderboard(),app=getApproved(),pend=getPending(),flag=getFlagged(),all=users.filter(u=>u.role==='contestant');
   const avg=app.length>0?Math.round(app.reduce((s,u)=>s+u.totalScore,0)/app.length):0;
   document.getElementById('a-dashboard').innerHTML=`
+    <div style="display:flex;justify-content:flex-end;margin-bottom:10px">
+      <button class="gbtn" onclick="refreshAndRender('renderAdminDashboard')" style="padding:7px 14px;font-size:12px;background:var(--secondary)">🔄 Refresh Data</button>
+    </div>
     <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:12px;margin-bottom:18px">
       ${[['👥 Contestants',all.length,'var(--primary)'],['✅ Approved',app.length,'var(--success)'],['⏳ Pending',pend.length,'var(--warning)'],['⚠️ Flagged',flag.length,'var(--danger)'],['📖 Quizzes',quizzes.length,'var(--secondary)'],['⭐ Avg Score',avg.toLocaleString(),'#F9A825']].map(([l,v,c])=>`
         <div class="card" style="text-align:center;border-top:4px solid ${c}">
@@ -1730,6 +1806,7 @@ function renderAdminUsers(){
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;flex-wrap:wrap;gap:10px">
       <div style="font-weight:800;font-size:20px;color:var(--primary)">👥 User Management</div>
       <div style="display:flex;gap:8px;flex-wrap:wrap">
+        <button class="gbtn" onclick="refreshAndRender('renderAdminUsers')" style="padding:8px 14px;font-size:13px;background:var(--secondary)">🔄 Refresh</button>
         <input type="text" id="usr-search" placeholder="🔍 Search..." style="width:180px" oninput="filterUsers()"/>
         <button class="gbtn" onclick="bulkApproveAll()" style="padding:8px 16px;font-size:13px;background:var(--success)">✅ Approve All Pending</button>
       </div>
@@ -1856,7 +1933,10 @@ async function publishQuiz(){
 function renderAdminLeaderboard(){
   const lb=getLeaderboard();
   document.getElementById('a-leaderboard').innerHTML=`
-    <div style="font-weight:800;font-size:20px;color:var(--primary);margin-bottom:14px">🏆 Global Leaderboard</div>
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;flex-wrap:wrap;gap:10px">
+      <div style="font-weight:800;font-size:20px;color:var(--primary)">🏆 Global Leaderboard</div>
+      <button class="gbtn" onclick="refreshAndRender('renderAdminLeaderboard')" style="padding:8px 14px;font-size:13px;background:var(--secondary)">🔄 Refresh</button>
+    </div>
     <div class="card" style="overflow-x:auto">
       <table style="width:100%;border-collapse:collapse;font-size:13px">
         <thead><tr style="background:#e8f5e9">
@@ -1882,7 +1962,10 @@ function renderAdminReports(){
   document.getElementById('a-reports').innerHTML=`
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;flex-wrap:wrap;gap:10px">
       <div style="font-weight:800;font-size:20px;color:var(--primary)">📊 Performance Reports</div>
-      <button class="gbtn" onclick="exportPerformance()" style="padding:10px 20px;font-size:14px;background:var(--primary)">⬇️ Download Full CSV</button>
+      <div style="display:flex;gap:8px">
+        <button class="gbtn" onclick="refreshAndRender('renderAdminReports')" style="padding:10px 16px;font-size:13px;background:var(--secondary)">🔄 Refresh</button>
+        <button class="gbtn" onclick="exportPerformance()" style="padding:10px 20px;font-size:14px;background:var(--primary)">⬇️ Download Full CSV</button>
+      </div>
     </div>
     <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:14px;margin-bottom:18px">
       <div class="card" style="text-align:center">
@@ -2091,7 +2174,10 @@ function showSoloDetail(uid,scoreIdx){
 function renderAdminBank(){
   const lb=getLeaderboard();
   document.getElementById('a-bank').innerHTML=`
-    <div style="font-weight:800;font-size:20px;color:var(--primary);margin-bottom:6px">💳 Bank Account Export</div>
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;flex-wrap:wrap;gap:8px">
+      <div style="font-weight:800;font-size:20px;color:var(--primary)">💳 Bank Account Export</div>
+      <button class="gbtn" onclick="refreshAndRender('renderAdminBank')" style="padding:7px 14px;font-size:12px;background:var(--secondary)">🔄 Refresh</button>
+    </div>
     <div style="font-size:14px;color:var(--muted);margin-bottom:18px">Export bank details for prize disbursement. Ranked by total score.</div>
     <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px;margin-bottom:20px">
       ${[['🥇 Top 50',50,'#F9A825'],['🥈 Top 100',100,'var(--primary)'],['🥉 Top 200',200,'var(--secondary)'],['📋 All Users',null,'var(--teal)']].map(([label,n,color])=>`
