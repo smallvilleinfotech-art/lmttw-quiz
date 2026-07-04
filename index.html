@@ -32,7 +32,8 @@ input[type=text],input[type=email],input[type=password],input[type=number],input
 input:focus,select:focus{border-color:var(--primary)}
 .notif{position:fixed;top:20px;left:50%;transform:translateX(-50%);z-index:9999;padding:12px 28px;border-radius:30px;font-weight:700;font-size:14px;box-shadow:0 6px 30px rgba(0,0,0,.2);min-width:260px;text-align:center;color:#fff;pointer-events:none;opacity:0;transition:opacity .3s}
 .notif.show{opacity:1}
-.opt-btn{border:none;border-radius:16px;padding:clamp(14px,3vh,22px) 14px;color:#fff;font-size:clamp(13px,3.5vw,16px);font-weight:700;cursor:pointer;text-align:left;display:flex;align-items:center;gap:10px;transition:all .3s;width:100%;height:100%;min-height:clamp(56px,10vh,90px)}
+.opt-btn{border:none;border-radius:18px;padding:clamp(18px,4vh,30px) 20px;color:#fff;font-size:clamp(16px,3vw,22px);font-weight:800;cursor:pointer;text-align:left;display:flex;align-items:center;gap:14px;transition:all .3s;width:100%;height:100%;min-height:clamp(90px,22vh,180px);box-shadow:0 4px 14px rgba(0,0,0,.18)}
+.opt-btn:hover:not(:disabled){transform:scale(1.02);box-shadow:0 8px 22px rgba(0,0,0,.28)}
 .opt-btn:hover:not(:disabled){filter:brightness(1.12);transform:scale(1.02)}
 @media(max-width:480px){#q-opts{grid-template-columns:1fr!important}}
 tr:hover{background:#f0fff4!important}
@@ -50,7 +51,7 @@ tr:hover{background:#f0fff4!important}
 .lh-qcard{background:linear-gradient(135deg,rgba(249,168,37,.16),rgba(21,101,192,.16));border:1px solid rgba(255,255,255,.15);border-radius:18px;padding:clamp(14px,3vw,22px);margin-bottom:clamp(10px,2vh,18px)}
 .lh-optgrid{display:grid;grid-template-columns:1fr 1fr;gap:clamp(8px,1.6vh,14px);flex:1;min-height:0}
 @media (max-width:560px){.lh-optgrid{grid-template-columns:1fr}}
-.lh-optcard{border-radius:16px;padding:clamp(12px,2.2vh,18px);display:flex;flex-direction:column;justify-content:center;position:relative;overflow:hidden;animation:lh-pop .35s ease both}
+.lh-optcard{border-radius:18px;padding:clamp(16px,3vh,26px);display:flex;flex-direction:column;justify-content:center;position:relative;overflow:hidden;animation:lh-pop .35s ease both;min-height:clamp(100px,20vh,180px)}
 .lh-optcard::after{content:'';position:absolute;inset:0;background:radial-gradient(circle at top right,rgba(255,255,255,.18),transparent 60%)}
 @keyframes lh-pop{from{opacity:0;transform:scale(.92)}to{opacity:1;transform:scale(1)}}
 @keyframes lh-pulse{0%,100%{transform:scale(1)}50%{transform:scale(1.05)}}
@@ -152,6 +153,13 @@ html,body{overflow-x:hidden;max-width:100vw}
 <!-- Hardcoded lobby background music/sound — toggled via startLobbyMusic()/stopLobbyMusic() -->
 <audio id="lobbyMusicAudio" loop preload="auto" style="display:none">
   <source src="lobby-music.mp3" type="audio/mpeg">
+</audio>
+<!-- Hardcoded "quiz in progress" thinking music — starts the moment questions
+     begin (host starts a live game, or a player starts a solo quiz), loops
+     for the duration of play, and stops when the quiz ends. Separate from
+     the lobby track above, which only plays in the waiting room. -->
+<audio id="quizMusicAudio" loop preload="auto" style="display:none">
+  <source src="quiz-music.mp3" type="audio/mpeg">
 </audio>
 <div class="notif" id="notif"></div>
 
@@ -271,13 +279,14 @@ html,body{overflow-x:hidden;max-width:100vw}
 </div>
 
 <!-- ==================== QUIZ SCREEN (solo + live) ==================== -->
-<div class="screen" id="s-quiz" style="background:linear-gradient(135deg,#0f5233,#1565C0);min-height:100dvh;color:#fff;position:relative;display:flex;flex-direction:column">
+<div class="screen" id="s-quiz" style="background:linear-gradient(135deg,#0f5233,#1565C0);min-height:100dvh;color:#fff;position:relative;display:none;flex-direction:column">
   <!-- Compact top bar -->
   <div style="padding:10px 16px;display:flex;justify-content:space-between;align-items:center;background:rgba(0,0,0,.25);flex-shrink:0">
     <div style="font-weight:800;font-size:13px;max-width:140px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" id="q-quizname">Quiz Name</div>
-    <div style="display:flex;gap:8px">
+    <div style="display:flex;gap:8px;align-items:center">
       <div id="q-score" style="background:rgba(255,255,255,.18);border-radius:20px;padding:5px 14px;font-weight:700;font-size:13px">⭐ 0</div>
       <div id="q-progress" style="background:rgba(255,255,255,.18);border-radius:20px;padding:5px 14px;font-weight:700;font-size:13px">1/5</div>
+      <button id="q-endsolo-btn" onclick="playerEndSoloQuizEarly()" style="display:none;background:rgba(198,40,40,.65);border:none;color:#fff;border-radius:20px;padding:5px 14px;font-weight:700;font-size:12px;cursor:pointer">🛑 End Quiz</button>
     </div>
   </div>
   <!-- Timer bar (full-width progress strip) -->
@@ -294,24 +303,27 @@ html,body{overflow-x:hidden;max-width:100vw}
     <span id="q-liveanswered" style="font-size:12px;color:rgba(255,255,255,.5)">0 answered</span>
   </div>
 
-  <!-- Question card — grows to fill available space -->
-  <div style="flex:1;display:flex;flex-direction:column;padding:clamp(10px,2.5vw,20px);max-width:700px;width:100%;margin:0 auto;min-height:0">
+  <!-- Question stage — fills the viewport, Kahoot-style -->
+  <div style="flex:1;display:flex;flex-direction:column;padding:clamp(10px,2vw,24px);max-width:1200px;width:100%;margin:0 auto;min-height:0">
     <div id="q-timerbar" style="display:none"></div><!-- kept for JS compat, hidden -->
-    <div style="background:rgba(255,255,255,.13);border-radius:18px;padding:clamp(14px,3vw,22px);margin-bottom:clamp(10px,2vh,18px);text-align:center;border:1px solid rgba(255,255,255,.2);flex-shrink:0">
-      <div id="q-qnum" style="font-size:12px;color:rgba(255,255,255,.65);margin-bottom:6px;letter-spacing:1px;text-transform:uppercase">Question 1 of 5</div>
-      <div id="q-qtext" style="font-size:clamp(17px,4vw,23px);font-weight:700;line-height:1.4">Question text</div>
-      <div id="q-pts" style="font-size:12px;color:#F9A825;margin-top:6px">⚡ Up to 1000 points</div>
+    <div style="background:rgba(255,255,255,.13);border-radius:18px;padding:clamp(16px,3vw,28px);margin-bottom:clamp(12px,2vh,20px);text-align:center;border:1px solid rgba(255,255,255,.2);flex-shrink:0">
+      <div id="q-qnum" style="font-size:13px;color:rgba(255,255,255,.65);margin-bottom:8px;letter-spacing:1px;text-transform:uppercase">Question 1 of 5</div>
+      <div id="q-qtext" style="font-size:clamp(22px,4.5vw,36px);font-weight:800;line-height:1.3">Question text</div>
+      <div id="q-qimage-wrap" style="display:none;margin-top:16px">
+        <img id="q-qimage" src="" alt="" style="max-width:100%;max-height:min(38vh,340px);border-radius:14px;object-fit:contain;box-shadow:0 8px 24px rgba(0,0,0,.3)"/>
+      </div>
+      <div id="q-pts" style="font-size:13px;color:#F9A825;margin-top:8px">⚡ Up to 1000 points</div>
     </div>
-    <!-- 2-col answer grid, goes 1-col on narrow screens -->
-    <div id="q-opts" style="display:grid;grid-template-columns:1fr 1fr;gap:clamp(8px,1.8vw,14px);flex:1;min-height:0"></div>
+    <!-- Answer area — content depends on question type (mcq/truefalse/type_answer/slider/puzzle) -->
+    <div id="q-opts" style="display:grid;grid-template-columns:1fr 1fr;gap:clamp(10px,1.8vw,18px);flex:1;min-height:0"></div>
     <!-- Result + waiting area -->
-    <div id="q-result" style="display:none;margin-top:14px;text-align:center;flex-shrink:0">
-      <div id="q-resultmsg" style="background:rgba(255,255,255,.15);border-radius:14px;padding:12px;margin-bottom:12px;font-size:15px;font-weight:700"></div>
+    <div id="q-result" style="display:none;margin-top:16px;text-align:center;flex-shrink:0">
+      <div id="q-resultmsg" style="background:rgba(255,255,255,.15);border-radius:14px;padding:14px;margin-bottom:12px;font-size:17px;font-weight:700"></div>
       <div id="q-answerbars" style="display:none;background:rgba(255,255,255,.08);border-radius:14px;padding:12px;margin-bottom:12px;text-align:left"></div>
       <div id="q-waitinghost" style="display:none;background:rgba(255,255,255,.08);border-radius:14px;padding:14px;margin-bottom:12px;font-size:14px;color:rgba(255,255,255,.8)">
         ⏳ Waiting for host to advance...
       </div>
-      <button class="gbtn" onclick="nextQuestion()" id="q-nextbtn" style="padding:13px 36px;font-size:15px;background:linear-gradient(135deg,#F9A825,#e65100);color:#fff">Next →</button>
+      <button class="gbtn" onclick="nextQuestion()" id="q-nextbtn" style="padding:15px 40px;font-size:16px;background:linear-gradient(135deg,#F9A825,#e65100);color:#fff">Next →</button>
     </div>
   </div>
 
@@ -326,7 +338,7 @@ html,body{overflow-x:hidden;max-width:100vw}
 </div>
 
 <!-- ==================== LIVE PODIUM OVERLAY (shown to all players + host between questions) ==================== -->
-<div class="screen" id="s-podium" style="background:radial-gradient(circle at top,#1a3a2a,#0a1a0f);min-height:100dvh;color:#fff;display:flex;flex-direction:column;align-items:center;justify-content:flex-start;overflow-y:auto">
+<div class="screen" id="s-podium" style="background:radial-gradient(circle at top,#1a3a2a,#0a1a0f);min-height:100dvh;color:#fff;display:none;flex-direction:column;align-items:center;justify-content:flex-start;overflow-y:auto">
   <div style="max-width:560px;width:100%;padding:clamp(20px,4vw,36px) 16px;text-align:center">
     <div style="font-size:13px;letter-spacing:3px;color:#F9A825;font-weight:700;margin-bottom:4px">LEADERBOARD</div>
     <div id="pd-qinfo" style="font-size:14px;color:rgba(255,255,255,.6);margin-bottom:20px">After Question 1</div>
@@ -355,8 +367,22 @@ html,body{overflow-x:hidden;max-width:100vw}
       <div style="font-family:'Fredoka One',cursive;font-size:20px;margin-bottom:12px;color:#F9A825">🏆 Final Standings</div>
       <div id="qd-liveboardinner"></div>
     </div>
-    <div id="qd-breakdown" style="margin-bottom:22px"></div>
+    <div style="margin-bottom:22px">
+      <button class="gbtn" onclick="showBreakdownModal(quizState.results,activeQuiz.name)" style="padding:10px 22px;font-size:13px;background:rgba(255,255,255,.15)">📋 View Question Breakdown</button>
+    </div>
     <button class="gbtn" onclick="postQuizDone()" style="padding:14px 40px;font-size:16px;background:linear-gradient(135deg,#F9A825,#e65100);color:#fff">Back to Dashboard</button>
+  </div>
+</div>
+
+<!-- Question-breakdown modal — reused by the end-of-quiz screen, the
+     player's Reports tab, and the admin's per-player reports view -->
+<div id="breakdown-modal" class="modal-backdrop" style="display:none" onclick="if(event.target===this)closeBreakdownModal()">
+  <div class="modal-card" style="max-width:560px;max-height:80vh;overflow-y:auto">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">
+      <div style="font-family:'Fredoka One',cursive;font-size:17px;color:#F9A825" id="breakdown-modal-title">Question Breakdown</div>
+      <button onclick="closeBreakdownModal()" style="background:none;border:none;font-size:22px;cursor:pointer;color:#fff">×</button>
+    </div>
+    <div id="breakdown-modal-body"></div>
   </div>
 </div>
 
@@ -469,7 +495,7 @@ html,body{overflow-x:hidden;max-width:100vw}
       <button class="gbtn" onclick="openLiveSettings()" title="Settings" style="background:rgba(255,255,255,.1);padding:6px 12px;font-size:15px">⚙️</button>
     </div>
   </div>
-  <div style="max-width:900px;margin:0 auto;padding:20px">
+  <div style="max-width:1200px;margin:0 auto;padding:20px">
     <!-- Pre-start lobby -->
     <div id="lh-lobby">
       <div style="text-align:center;margin-bottom:24px">
@@ -498,6 +524,9 @@ html,body{overflow-x:hidden;max-width:100vw}
         <div>
           <div style="font-size:12px;color:rgba(255,255,255,.5);text-transform:uppercase;letter-spacing:2px">Question <span id="lh-qnum">1</span> of <span id="lh-qtotal">5</span></div>
           <div id="lh-qtext" style="font-size:clamp(16px,2.4vw,22px);font-weight:700;color:#fff;margin-top:4px"></div>
+          <div id="lh-qimage-wrap" style="display:none;margin-top:10px">
+            <img id="lh-qimage" src="" alt="" style="max-width:100%;max-height:180px;border-radius:10px;object-fit:contain"/>
+          </div>
         </div>
         <div style="text-align:center">
           <div id="lh-timer" class="lh-timer-pulse" style="font-family:'Fredoka One',cursive;font-size:clamp(34px,5vw,48px);color:#F9A825">20</div>
@@ -706,14 +735,14 @@ async function restoreLiveGameAsPlayer(persisted){
       } else if(remaining<=0){
         // Time already ran out while they were away
         renderQuizQuestion();
-        answerQ(-1);
+        handleTimeout();
       } else {
         renderQuizQuestion();
         startTimer();
       }
     } else if(remaining<=0){
       renderQuizQuestion();
-      answerQ(-1);
+      handleTimeout();
     } else {
       renderQuizQuestion();
       startTimer();
@@ -796,6 +825,20 @@ function stopLobbyMusic(){
   const el=lobbyAudioEl(); if(el){el.pause();}
   syncMusicToggleButtons();
 }
+// Same idea as the lobby track above, but for the "quiz in progress" music —
+// governed by the same musicOn() toggle so the player's one Music switch
+// controls both (whichever track is appropriate for the screen they're on).
+function quizAudioEl(){ return document.getElementById('quizMusicAudio'); }
+function startQuizMusic(){
+  if(!musicOn())return;
+  const el=quizAudioEl(); if(!el)return;
+  el.volume=0.24;
+  el.currentTime=0;
+  el.play().catch(()=>{});
+}
+function stopQuizMusic(){
+  const el=quizAudioEl(); if(el){el.pause();}
+}
 // Lets a player (or host) flip music on/off for their own device without
 // opening the full settings modal — used by the lobby screens.
 function toggleLobbyMusicButton(){
@@ -821,7 +864,10 @@ function toggleLiveSetting(key){
   liveGame.settings[key]=!liveGame.settings[key];
   const el=document.getElementById('tg-'+key);
   if(el)el.classList.toggle('on',liveGame.settings[key]);
-  if(key==='music'){ if(liveGame.settings.music&&liveGame.phase==='lobby')startLobbyMusic(); else stopLobbyMusic(); }
+  if(key==='music'){
+    if(liveGame.settings.music&&liveGame.phase==='lobby')startLobbyMusic(); else stopLobbyMusic();
+    if(liveGame.settings.music&&(liveGame.phase==='question'||liveGame.phase==='podium'))startQuizMusic(); else stopQuizMusic();
+  }
 }
 
 // =====================================================================
@@ -908,6 +954,7 @@ function goTo(id){
   el.classList.add('active');
   if(id==='s-quizdone')el.style.display='block';
   if(id==='s-livehost')el.style.display='block';
+  if(id==='s-quiz'||id==='s-podium')el.style.display='flex';
 }
 async function cTab(id,btn){
   ['c-overview','c-joinlive','c-quizzes','c-leaderboard','c-reports','c-profile'].forEach(t=>{
@@ -1019,7 +1066,7 @@ async function loadAllData(){
   users = (profiles||[]).map(p=>{
     const myScores = scoreList
       .filter(s=>s.user_id===p.id)
-      .map(s=>({quiz:s.quiz_name||'Unknown',quizId:s.quiz_id,score:s.score||0,date:(s.played_at||'').split('T')[0],mode:s.mode||'live'}));
+      .map(s=>({id:s.id,quiz:s.quiz_name||'Unknown',quizId:s.quiz_id,score:s.score||0,date:(s.played_at||'').split('T')[0],mode:s.mode||'live',breakdown:s.breakdown||null}));
     const totalScore = p.total_score || myScores.reduce((acc,s)=>acc+s.score,0);
     return {
       id: p.id,
@@ -1048,7 +1095,7 @@ async function loadAllData(){
   const stubIds=new Set([...scoreList.map(s=>s.user_id), ...Object.keys(nameById)]);
   stubIds.forEach(id=>{
     if(id&&!knownIds.has(id)){
-      const myScores=scoreList.filter(s=>s.user_id===id).map(s=>({quiz:s.quiz_name||'Unknown',quizId:s.quiz_id,score:s.score||0,date:(s.played_at||'').split('T')[0],mode:s.mode||'live'}));
+      const myScores=scoreList.filter(s=>s.user_id===id).map(s=>({id:s.id,quiz:s.quiz_name||'Unknown',quizId:s.quiz_id,score:s.score||0,date:(s.played_at||'').split('T')[0],mode:s.mode||'live',breakdown:s.breakdown||null}));
       users.push({
         id, supabaseId:id, name:nameById[id]||'Player', email:'—', phone:'—',
         role:'contestant', status:'approved', joinDate:'',
@@ -1298,6 +1345,7 @@ function renderLobbyPlayers(){
 }
 function startLiveQuizAsPlayer(){
   stopLobbyMusic();
+  startQuizMusic();
   const qz=quizzes.find(q=>q.id===myPlayerSession.quizId);
   if(!qz)return;
   activeQuiz=qz;
@@ -1398,6 +1446,7 @@ async function hostStartGame(){
   const qz=quizzes.find(q=>q.id===liveGame.quizId);
   if(!qz)return;
   stopLobbyMusic();
+  startQuizMusic();
   sfxFanfare();
   if(liveGame.settings.randomizeQuestions){
     liveGame.questionsOverride=[...qz.questions].sort(()=>Math.random()-.5);
@@ -1428,25 +1477,43 @@ function renderHostQuestion(){
   const qz=quizzes.find(q=>q.id===liveGame.quizId);
   const total=(liveGame.questionsOverride||qz.questions).length;
   const q=getActiveQuestion();
-  liveGame.answerCounts=new Array(q.options.length).fill(0);
+  const type=q.type||'mcq';
+  const numOpts=Array.isArray(q.options)?q.options.length:0;
+  liveGame.answerCounts=new Array(numOpts).fill(0);
   liveGame.totalAnswered=0;
   document.getElementById('lh-qnum').textContent=liveGame.currentQ+1;
   document.getElementById('lh-qtotal').textContent=total;
   document.getElementById('lh-qtext').textContent=q.text;
   document.getElementById('lh-nextbtn').style.display='none';
   document.getElementById('lh-answered').textContent=`0 / ${Object.keys(liveGame.players).length} answered`;
-  // Colour-rich option cards — each card gets its OPT_COLOR as the dominant hue
-  document.getElementById('lh-optrows').innerHTML=q.options.map((opt,i)=>`
-    <div class="lh-optcard" style="background:linear-gradient(135deg,${OPT_COLORS[i]},${OPT_COLORS[(i+1)%OPT_COLORS.length]}55);border:2px solid ${OPT_COLORS[i]}">
-      <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px">
-        <span style="font-size:22px;background:rgba(0,0,0,.25);width:36px;height:36px;border-radius:50%;display:flex;align-items:center;justify-content:center">${OPT_ICONS[i]}</span>
-        <span style="font-weight:700;font-size:clamp(13px,2.2vw,15px);color:#fff;flex:1;line-height:1.3">${opt}</span>
-        <span id="lh-opt-count-${i}" style="font-family:'Fredoka One',cursive;font-size:clamp(20px,3vw,28px);font-weight:900;color:#fff;background:rgba(0,0,0,.25);min-width:36px;height:36px;border-radius:10px;display:flex;align-items:center;justify-content:center">0</span>
-      </div>
-      <div style="height:10px;background:rgba(0,0,0,.2);border-radius:5px;overflow:hidden">
-        <div class="answer-bar" id="lh-opt-bar-${i}" style="width:0%;height:100%;background:rgba(255,255,255,.6);border-radius:5px;transition:width .4s ease"></div>
-      </div>
-    </div>`).join('');
+  const imgWrap=document.getElementById('lh-qimage-wrap');
+  const imgEl=document.getElementById('lh-qimage');
+  if(imgWrap&&imgEl){
+    if(q.image){imgWrap.style.display='block';imgEl.src=q.image;} else {imgWrap.style.display='none';imgEl.src='';}
+  }
+  if(type==='mcq'||type==='truefalse'){
+    // Colour-rich option cards — each card gets its OPT_COLOR as the dominant hue
+    document.getElementById('lh-optrows').innerHTML=q.options.map((opt,i)=>`
+      <div class="lh-optcard" style="background:linear-gradient(135deg,${OPT_COLORS[i]},${OPT_COLORS[(i+1)%OPT_COLORS.length]}55);border:2px solid ${OPT_COLORS[i]}">
+        <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px">
+          <span style="font-size:22px;background:rgba(0,0,0,.25);width:36px;height:36px;border-radius:50%;display:flex;align-items:center;justify-content:center">${OPT_ICONS[i]}</span>
+          <span style="font-weight:700;font-size:clamp(13px,2.2vw,15px);color:#fff;flex:1;line-height:1.3">${opt}</span>
+          <span id="lh-opt-count-${i}" style="font-family:'Fredoka One',cursive;font-size:clamp(20px,3vw,28px);font-weight:900;color:#fff;background:rgba(0,0,0,.25);min-width:36px;height:36px;border-radius:10px;display:flex;align-items:center;justify-content:center">0</span>
+        </div>
+        <div style="height:10px;background:rgba(0,0,0,.2);border-radius:5px;overflow:hidden">
+          <div class="answer-bar" id="lh-opt-bar-${i}" style="width:0%;height:100%;background:rgba(255,255,255,.6);border-radius:5px;transition:width .4s ease"></div>
+        </div>
+      </div>`).join('');
+  } else {
+    // type_answer / slider / puzzle: not discrete options, so show a
+    // simplified "waiting for answers" panel instead of per-option bars.
+    const typeLabel=type==='type_answer'?'✍️ Type Answer':type==='slider'?'🎚️ Slider':'🧩 Puzzle (Order)';
+    document.getElementById('lh-optrows').innerHTML=`
+      <div class="lh-optcard" style="grid-column:1/-1;background:rgba(255,255,255,.08);border:2px dashed rgba(255,255,255,.3);text-align:center;padding:24px">
+        <div style="font-size:15px;font-weight:700;color:#fff;margin-bottom:6px">${typeLabel} question</div>
+        <div style="font-size:13px;color:rgba(255,255,255,.6)">Players are answering on their own screens — the tally below updates as they submit.</div>
+      </div>`;
+  }
   // Dynamic background per question number for variety
   const skins=['qscreen-bg-0','qscreen-bg-1','qscreen-bg-2','qscreen-bg-3'];
   const sh=document.getElementById('s-livehost');
@@ -1517,6 +1584,7 @@ async function hostNextQuestion(){
     liveGame.phase='done';
     clearInterval(liveGame.hostTimer);
     stopLobbyMusic();
+    stopQuizMusic();
     sfxFanfare();
     const sb=getSupabase();
     if(sb)await sb.from('live_sessions').update({phase:'done',ended_at:new Date().toISOString()}).eq('id',liveGame.sessionId);
@@ -1548,6 +1616,7 @@ async function hostEndQuizNow(){
   liveGame.phase='done';
   clearInterval(liveGame.hostTimer);
   stopLobbyMusic();
+  stopQuizMusic();
   sfxFanfare();
   const sb=getSupabase();
   if(sb)await sb.from('live_sessions').update({phase:'done',ended_at:new Date().toISOString()}).eq('id',liveGame.sessionId);
@@ -1585,6 +1654,7 @@ async function endLiveGame(){
   }
   notify('Game ended & results saved! ✅');
   stopLobbyMusic();
+  stopQuizMusic();
   goTo('s-admin');
   aTab('a-leaderboard',document.querySelectorAll('#s-admin .tab-btn')[4]);
 }
@@ -1612,23 +1682,26 @@ function subscribeToSessionAsHost(sessionId){
 async function checkAllAnsweredAndAdvance(sessionId){
   if(liveGame.phase!=='question')return; // already revealed/advanced
   const sb=getSupabase();if(!sb)return;
-  const {data,error}=await sb.rpc('live_answered_count',{p_session_id:sessionId});
-  if(error||!data)return;
-  const {total,answered}=data;
+  // Compute answered/total and the per-option distribution directly from
+  // live_players — this used to depend on a live_answered_count() RPC, but
+  // if that RPC is missing or errors, the whole bar-refresh silently never
+  // ran, which is exactly why the host's answer bars stayed stuck at 0.
+  // live_players is now readable by any authenticated user (see
+  // fix-lmttw-database.sql), so we can compute everything client-side.
+  const {data:players,error}=await sb.from('live_players').select('last_answer,last_question_index').eq('session_id',sessionId);
+  if(error||!players)return;
+  const total=Object.keys(liveGame.players||{}).length||players.length;
+  const answered=players.filter(p=>p.last_question_index===liveGame.currentQ&&p.last_answer!==null&&p.last_answer!==undefined).length;
   const el=document.getElementById('lh-answered');
   if(el)el.textContent=`${answered} / ${total} answered`;
-  liveGame.answerCounts=liveGame.answerCounts||[];
-  // Refresh answer distribution bars from DB so they're always accurate
-  const {data:players}=await sb.from('live_players').select('last_answer,last_question_index').eq('session_id',sessionId);
-  if(players){
-    const counts={};
-    players.forEach(p=>{if(p.last_question_index===liveGame.currentQ&&p.last_answer!==null&&p.last_answer!==undefined){counts[p.last_answer]=(counts[p.last_answer]||0)+1;}});
-    const qz=quizzes.find(q=>q.id===liveGame.quizId);
-    const numOpts=qz?(liveGame.questionsOverride||qz.questions)[liveGame.currentQ].options.length:4;
-    liveGame.answerCounts=Array.from({length:numOpts},(_,i)=>counts[i]||0);
-    liveGame.totalAnswered=answered;
-    updateHostAnswerBars();
-  }
+  const counts={};
+  players.forEach(p=>{if(p.last_question_index===liveGame.currentQ&&p.last_answer!==null&&p.last_answer!==undefined){counts[p.last_answer]=(counts[p.last_answer]||0)+1;}});
+  const qz=quizzes.find(q=>q.id===liveGame.quizId);
+  const activeQ=qz?(liveGame.questionsOverride||qz.questions)[liveGame.currentQ]:null;
+  const numOpts=activeQ&&Array.isArray(activeQ.options)?activeQ.options.length:4;
+  liveGame.answerCounts=Array.from({length:numOpts},(_,i)=>counts[i]||0);
+  liveGame.totalAnswered=answered;
+  updateHostAnswerBars();
   if(total>0&&answered>=total){
     // Everyone has answered — auto-advance to podium, just like Kahoot
     clearInterval(liveGame.hostTimer);
@@ -1998,10 +2071,10 @@ async function renderContestantReports(){
     // Rows saved before this tagging existed have no `mode` and are shown
     // as Solo, since that's what they were treated as historically.
     all=(allScores||[]).filter(s=>s.user_id===currentUser.supabaseId).map(s=>({
-      quiz:s.quiz_name||'Unknown',score:s.score||0,date:(s.played_at||'').split('T')[0],mode:s.mode==='live'?'live':'solo'
+      id:s.id,quiz:s.quiz_name||'Unknown',score:s.score||0,date:(s.played_at||'').split('T')[0],mode:s.mode==='live'?'live':'solo',breakdown:s.breakdown||null
     }));
   } else {
-    all=(currentUser.scores||[]).map(s=>({quiz:s.quiz,score:s.score,date:s.date,mode:'solo'}));
+    all=(currentUser.scores||[]).map(s=>({id:s.id,quiz:s.quiz,score:s.score,date:s.date,mode:'solo',breakdown:s.breakdown||null}));
   }
   all.sort((a,b)=>(b.date||'').localeCompare(a.date||''));
 
@@ -2040,7 +2113,7 @@ async function renderContestantReports(){
       <div style="overflow-x:auto">
         <table style="width:100%;border-collapse:collapse;font-size:13px">
           <thead><tr style="background:#e8f5e9">
-            ${['Quiz','Mode','Score','Date'].map(h=>`<th style="padding:9px 8px;text-align:left;font-weight:700;color:var(--primary)">${h}</th>`).join('')}
+            ${['Quiz','Mode','Score','Date',''].map(h=>`<th style="padding:9px 8px;text-align:left;font-weight:700;color:var(--primary)">${h}</th>`).join('')}
           </tr></thead>
           <tbody>${all.map((e,i)=>`
             <tr style="background:${i%2===0?'#fff':'#f9fffe'};border-bottom:1px solid var(--border)">
@@ -2048,11 +2121,14 @@ async function renderContestantReports(){
               <td style="padding:9px 8px"><span class="badge" style="background:${e.mode==='live'?'#e3f2fd':'#e0f2f1'};color:${e.mode==='live'?'var(--secondary)':'var(--teal)'}">${e.mode==='live'?'🎮 Live':'📖 Solo'}</span></td>
               <td style="padding:9px 8px;font-weight:800;color:var(--primary)">${(e.score||0).toLocaleString()}</td>
               <td style="padding:9px 8px;color:var(--muted)">${e.date||'—'}</td>
+              <td style="padding:9px 8px">${e.breakdown?`<button class="gbtn" onclick="showBreakdownModal(window._myReportAttempts['${e.id}'],'${(e.quiz||'').replace(/'/g,"\\'")}')" style="padding:5px 12px;font-size:11px;background:var(--secondary)">📋 View</button>`:''}</td>
             </tr>`).join('')}
           </tbody>
         </table>
       </div>
     </div>`;
+  window._myReportAttempts={};
+  all.forEach(e=>{if(e.id)window._myReportAttempts[e.id]=e.breakdown;});
 }
 function postQuizDone(){
   const wasFromDashboard=myPlayerSession.fromDashboard;
@@ -2075,6 +2151,7 @@ function startQuiz(qid){
   if(!activeQuiz||!activeQuiz.questions||activeQuiz.questions.length===0)return notify('Quiz not available','error');
   quizState={currentQ:0,timeLeft:activeQuiz.questions[0].time,answered:null,score:0,results:[],phase:'question',isLive:false,finished:false};
   document.getElementById('q-livebar').style.display='none';
+  startQuizMusic();
   renderQuizQuestion();
   goTo('s-quiz');
   startTimer();
@@ -2082,6 +2159,7 @@ function startQuiz(qid){
 function renderQuizQuestion(){
   if(!quizState||!activeQuiz)return;
   const q=activeQuiz.questions[quizState.currentQ];
+  const type=q.type||'mcq';
   const total=activeQuiz.questions.length;
   document.getElementById('q-quizname').textContent='💧 '+activeQuiz.name;
   document.getElementById('q-score').textContent='⭐ '+quizState.score.toLocaleString();
@@ -2097,13 +2175,61 @@ function renderQuizQuestion(){
   document.getElementById('q-nextbtn').style.display=quizState.isLive?'none':'inline-block';
   document.getElementById('q-timerfill').style.width='100%';
   document.getElementById('q-timerlabel').textContent=q.time+'s';
-  // Colour-rich answer buttons
-  document.getElementById('q-opts').innerHTML=q.options.map((opt,i)=>`
-    <button class="opt-btn" onclick="answerQ(${i})" id="opt-${i}"
-      style="background:linear-gradient(135deg,${OPT_COLORS[i]},${OPT_COLORS[(i+2)%OPT_COLORS.length]}88);border:2px solid ${OPT_COLORS[i]}">
-      <span style="font-size:clamp(18px,5vw,24px);background:rgba(0,0,0,.2);width:36px;height:36px;border-radius:50%;display:flex;align-items:center;justify-content:center;flex-shrink:0">${OPT_ICONS[i]}</span>
-      <span style="flex:1;line-height:1.3">${opt}</span>
-    </button>`).join('');
+  // Solo players can bail out early; live players can't (host controls pace)
+  const endSoloBtn=document.getElementById('q-endsolo-btn');
+  if(endSoloBtn)endSoloBtn.style.display=quizState.isLive?'none':'inline-block';
+  // Big question image, Kahoot-style, if this question has one
+  const imgWrap=document.getElementById('q-qimage-wrap');
+  const imgEl=document.getElementById('q-qimage');
+  if(q.image){ imgWrap.style.display='block'; imgEl.src=q.image; imgEl.alt=q.text; }
+  else { imgWrap.style.display='none'; imgEl.src=''; }
+
+  const host=document.getElementById('q-opts');
+  if(type==='type_answer'){
+    host.style.gridTemplateColumns='1fr';
+    host.innerHTML=`
+      <div style="display:flex;flex-direction:column;justify-content:center;gap:16px;height:100%">
+        <input id="q-typeanswer-input" type="text" placeholder="Type your answer..." autocomplete="off"
+          style="width:100%;padding:20px;font-size:clamp(18px,3.5vw,26px);border-radius:16px;border:2px solid rgba(255,255,255,.35);background:rgba(255,255,255,.12);color:#fff;text-align:center;font-weight:700"
+          onkeydown="if(event.key==='Enter')answerTypeText()"/>
+        <button class="gbtn" id="q-typeanswer-submit" onclick="answerTypeText()" style="padding:18px;font-size:18px;background:linear-gradient(135deg,#F9A825,#e65100);align-self:center;min-width:220px">Submit Answer</button>
+      </div>`;
+    setTimeout(()=>{const el=document.getElementById('q-typeanswer-input');if(el)el.focus();},50);
+  } else if(type==='slider'){
+    host.style.gridTemplateColumns='1fr';
+    const mid=Math.round(((q.sliderMin||0)+(q.sliderMax||100))/2);
+    host.innerHTML=`
+      <div style="display:flex;flex-direction:column;justify-content:center;gap:18px;height:100%;padding:0 clamp(10px,4vw,60px)">
+        <div style="text-align:center;font-size:clamp(30px,6vw,48px);font-weight:900;color:#F9A825" id="q-slider-value">${mid}</div>
+        <input id="q-slider-input" type="range" min="${q.sliderMin||0}" max="${q.sliderMax||100}" step="${q.sliderStep||1}" value="${mid}"
+          oninput="document.getElementById('q-slider-value').textContent=this.value" style="width:100%"/>
+        <div style="display:flex;justify-content:space-between;font-size:13px;color:rgba(255,255,255,.6)">
+          <span>${q.sliderMin||0}</span><span>${q.sliderMax||100}</span>
+        </div>
+        <button class="gbtn" id="q-slider-submit" onclick="answerSlider()" style="padding:18px;font-size:18px;background:linear-gradient(135deg,#F9A825,#e65100);align-self:center;min-width:220px">Submit Answer</button>
+      </div>`;
+  } else if(type==='puzzle'){
+    host.style.gridTemplateColumns='1fr 1fr';
+    quizState.puzzleShuffled=[...q.puzzleItems].sort(()=>Math.random()-.5);
+    quizState.puzzleOrder=[];
+    renderPuzzleUI();
+  } else if(type==='truefalse'){
+    host.style.gridTemplateColumns='1fr 1fr';
+    const labels=q.options&&q.options.length===2?q.options:['True','False'];
+    host.innerHTML=labels.map((opt,i)=>`
+      <button class="opt-btn" onclick="answerQ(${i})" id="opt-${i}" style="justify-content:center;text-align:center;font-size:clamp(22px,5vw,32px);background:linear-gradient(135deg,${i===0?'#2e7d32,#1b5e20':'#C62828,#7f0000'})">
+        <span style="flex:none">${i===0?'✔️':'❌'} ${opt}</span>
+      </button>`).join('');
+  } else {
+    // mcq (default)
+    host.style.gridTemplateColumns='1fr 1fr';
+    host.innerHTML=q.options.map((opt,i)=>`
+      <button class="opt-btn" onclick="answerQ(${i})" id="opt-${i}"
+        style="background:linear-gradient(135deg,${OPT_COLORS[i]},${OPT_COLORS[(i+2)%OPT_COLORS.length]}88);border:2px solid ${OPT_COLORS[i]}">
+        <span style="font-size:clamp(20px,5vw,28px);background:rgba(0,0,0,.2);width:44px;height:44px;border-radius:50%;display:flex;align-items:center;justify-content:center;flex-shrink:0">${OPT_ICONS[i]}</span>
+        <span style="flex:1;line-height:1.3">${opt}</span>
+      </button>`).join('');
+  }
   // Rotate question background gradient per question for variety
   const bgs=[
     'linear-gradient(135deg,#0f5233,#1565C0)',
@@ -2113,6 +2239,17 @@ function renderQuizQuestion(){
   ];
   document.getElementById('s-quiz').style.background=bgs[quizState.currentQ%bgs.length];
   sfxCountdownStart();
+}
+// Lets a SOLO player stop their own quiz early (never affects a live game —
+// that's the host's call via hostEndQuizNow). Whatever's been answered so
+// far is saved as their final result for this attempt.
+function playerEndSoloQuizEarly(){
+  if(!quizState||quizState.isLive)return;
+  if(quizState.phase==='question'){
+    if(!confirm('End this quiz now? Your score so far will be saved as your final result.'))return;
+  }
+  clearInterval(timerInterval);
+  finishQuiz();
 }
 function startTimer(){
   if(timerInterval)clearInterval(timerInterval);
@@ -2139,8 +2276,165 @@ function startTimer(){
     }
     if(lbl)lbl.textContent=quizState.timeLeft+'s';
     if(quizState.timeLeft<=5)sfxTick();
-    if(quizState.timeLeft<=0){clearInterval(timerInterval);answerQ(-1);}
+    if(quizState.timeLeft<=0){clearInterval(timerInterval);handleTimeout();}
   },1000);
+}
+// Handles live-score reporting for question types that AREN'T a simple
+// option index (type-answer, slider, puzzle). The existing submit_live_answer
+// RPC is built around picking one of several listed options, so it can't
+// validate these — instead we apply the already-client-computed point award
+// directly to the player's own live_players row. This is slightly less
+// tamper-resistant than the RPC path (no server-side re-validation), but it's
+// the only way to support these types live without changing that RPC.
+async function reportNonMcqAnswerToHost(isCorrect,earned){
+  const sb=getSupabase();
+  if(sb&&myPlayerSession.sessionId){
+    const {data:me}=await sb.from('live_players').select('score').eq('session_id',myPlayerSession.sessionId).eq('auth_uid',myPlayerSession.authUid).maybeSingle();
+    const newScore=(me?.score||0)+earned;
+    await sb.from('live_players').update({score:newScore,last_answer:isCorrect?1:0,last_question_index:quizState?quizState.currentQ:0}).eq('session_id',myPlayerSession.sessionId).eq('auth_uid',myPlayerSession.authUid);
+    myPlayerSession.score=newScore;
+    if(quizState)quizState.score=newScore;
+    if(isCorrect){myPlayerSession.streak=(myPlayerSession.streak||0)+1;sfxCorrect();} else {myPlayerSession.streak=0;sfxWrong();}
+    const {data:players}=await sb.from('live_players').select('nickname,score,auth_uid').eq('session_id',myPlayerSession.sessionId).order('score',{ascending:false});
+    if(players){
+      const comment=commentForPlayer(myPlayerSession.authUid,players,isCorrect,myPlayerSession.streak);
+      showKahootComment(comment);
+    }
+    updateLiveHud(myPlayerSession.sessionId);
+  } else {
+    if(liveGame.players&&liveGame.players[myPlayerSession.playerId]){
+      liveGame.players[myPlayerSession.playerId].score=myPlayerSession.score;
+      liveGame.totalAnswered++;
+      updateHostAnswerBars();
+    }
+    if(isCorrect){myPlayerSession.streak=(myPlayerSession.streak||0)+1;sfxCorrect();} else {myPlayerSession.streak=0;sfxWrong();}
+  }
+}
+// Shared "answer submitted" tail — score bookkeeping, result message, and
+// next/wait-for-host UI — used by every question type's answer handler so
+// they all behave consistently.
+function finalizeAnswer(q,isCorrect,earned,chosenDisplay,correctDisplay,chosenRaw,isNonMcqLive){
+  clearInterval(timerInterval);
+  quizState.answered=chosenRaw;
+  quizState.phase='result';
+  quizState.score+=earned;
+  quizState.results.push({q:q.text,correct:isCorrect,earned,chosen:chosenDisplay,correctAnswer:correctDisplay});
+  if(quizState.isLive){
+    myPlayerSession.score=quizState.score;
+    if(isNonMcqLive)reportNonMcqAnswerToHost(isCorrect,earned);
+    else if(typeof chosenRaw==='number'&&chosenRaw>=0)reportAnswerToHost(chosenRaw);
+  } else {
+    if(isCorrect)sfxCorrect(); else sfxWrong();
+  }
+  if(isCorrect&&earned>0)showScoreFloat(earned);
+  const rm=document.getElementById('q-resultmsg');
+  if(isCorrect){
+    rm.style.background='rgba(46,125,50,.4)';rm.style.border='1px solid #69f0ae';
+    rm.textContent=`✅ Correct! +${earned} points`;
+  } else if(chosenRaw===null||chosenRaw===-1){
+    rm.style.background='rgba(198,40,40,.3)';rm.style.border='1px solid #ff5252';
+    rm.textContent=`⏱️ Time's up! Correct answer: ${correctDisplay}`;
+  } else {
+    rm.style.background='rgba(198,40,40,.3)';rm.style.border='1px solid #ff5252';
+    rm.textContent=`❌ Wrong! Correct answer: ${correctDisplay}`;
+  }
+  if(quizState.isLive){
+    document.getElementById('q-nextbtn').style.display='none';
+    document.getElementById('q-waitinghost').style.display='block';
+  } else {
+    document.getElementById('q-nextbtn').style.display='inline-block';
+    document.getElementById('q-nextbtn').textContent=quizState.currentQ+1>=activeQuiz.questions.length?'Finish Quiz 🎉':'Next Question →';
+  }
+  document.getElementById('q-result').style.display='block';
+  document.getElementById('q-score').textContent='⭐ '+quizState.score.toLocaleString();
+}
+function timeBonusFor(q,isCorrect){ return isCorrect?Math.round((quizState.timeLeft/q.time)*(q.points||1000)):0; }
+// --- Type Answer ---
+function answerTypeText(){
+  if(!quizState||quizState.phase!=='question')return;
+  const q=activeQuiz.questions[quizState.currentQ];
+  const input=document.getElementById('q-typeanswer-input');
+  const raw=(input?input.value:'').trim();
+  const accepted=(q.acceptedAnswers||[]).map(a=>a.trim().toLowerCase());
+  const isCorrect=raw.length>0&&accepted.includes(raw.toLowerCase());
+  const earned=timeBonusFor(q,isCorrect);
+  if(input)input.disabled=true;
+  const btn=document.getElementById('q-typeanswer-submit');
+  if(btn)btn.disabled=true;
+  finalizeAnswer(q,isCorrect,earned,raw||'(no answer)',q.acceptedAnswers&&q.acceptedAnswers[0]||'—',raw||null,true);
+}
+// --- Slider ---
+function answerSlider(){
+  if(!quizState||quizState.phase!=='question')return;
+  const q=activeQuiz.questions[quizState.currentQ];
+  const input=document.getElementById('q-slider-input');
+  const val=input?Number(input.value):null;
+  const tolerance=q.sliderTolerance||0;
+  const isCorrect=val!==null&&Math.abs(val-q.sliderCorrect)<=tolerance;
+  const earned=timeBonusFor(q,isCorrect);
+  if(input)input.disabled=true;
+  const btn=document.getElementById('q-slider-submit');
+  if(btn)btn.disabled=true;
+  finalizeAnswer(q,isCorrect,earned,String(val),String(q.sliderCorrect),val,true);
+}
+// --- Puzzle (order-the-items) ---
+function puzzleTapItem(idx){
+  if(!quizState||quizState.phase!=='question')return;
+  if(!quizState.puzzleOrder)quizState.puzzleOrder=[];
+  if(quizState.puzzleOrder.includes(idx))return;
+  quizState.puzzleOrder.push(idx);
+  renderPuzzleUI();
+  if(quizState.puzzleOrder.length===quizState.puzzleShuffled.length){
+    setTimeout(answerPuzzleSubmit,300);
+  }
+}
+function puzzleResetOrder(){
+  if(!quizState)return;
+  quizState.puzzleOrder=[];
+  renderPuzzleUI();
+}
+function renderPuzzleUI(){
+  const q=activeQuiz.questions[quizState.currentQ];
+  const shuffled=quizState.puzzleShuffled;
+  const order=quizState.puzzleOrder||[];
+  const chosenHtml=order.length===0
+    ?'<div style="opacity:.6;font-size:13px">Tap items below in the correct order...</div>'
+    :order.map((idx,pos)=>`<span style="background:rgba(249,168,37,.85);color:#3e2200;font-weight:800;border-radius:10px;padding:8px 14px;margin:3px;display:inline-block">${pos+1}. ${shuffled[idx]}</span>`).join('');
+  const remainingHtml=shuffled.map((item,idx)=>order.includes(idx)?'':`<button class="opt-btn" onclick="puzzleTapItem(${idx})" style="background:linear-gradient(135deg,${OPT_COLORS[idx%OPT_COLORS.length]},${OPT_COLORS[(idx+2)%OPT_COLORS.length]}88);border:2px solid ${OPT_COLORS[idx%OPT_COLORS.length]};min-height:70px;font-size:clamp(14px,2.6vw,18px)">${item}</button>`).join('');
+  const host=document.getElementById('q-opts');
+  if(host)host.innerHTML=`
+    <div style="grid-column:1/-1;background:rgba(255,255,255,.1);border-radius:14px;padding:14px;min-height:60px">${chosenHtml}</div>
+    <div style="grid-column:1/-1;display:grid;grid-template-columns:1fr 1fr;gap:10px">${remainingHtml}</div>
+    <div style="grid-column:1/-1;text-align:center">
+      <button class="gbtn" onclick="puzzleResetOrder()" style="padding:8px 18px;font-size:12px;background:rgba(255,255,255,.15)">↺ Reset order</button>
+    </div>`;
+}
+function answerPuzzleSubmit(){
+  if(!quizState||quizState.phase!=='question')return;
+  const q=activeQuiz.questions[quizState.currentQ];
+  const order=quizState.puzzleOrder||[];
+  const shuffled=quizState.puzzleShuffled;
+  const attemptedOrder=order.map(idx=>shuffled[idx]);
+  const isCorrect=JSON.stringify(attemptedOrder)===JSON.stringify(q.puzzleItems);
+  const earned=timeBonusFor(q,isCorrect);
+  finalizeAnswer(q,isCorrect,earned,attemptedOrder.join(' → '),q.puzzleItems.join(' → '),attemptedOrder.length?0:null,true);
+}
+function handleTimeout(){
+  if(!quizState||!activeQuiz)return;
+  const q=activeQuiz.questions[quizState.currentQ];
+  const type=q.type||'mcq';
+  if(type==='type_answer'){
+    const input=document.getElementById('q-typeanswer-input'); if(input)input.disabled=true;
+    const btn=document.getElementById('q-typeanswer-submit'); if(btn)btn.disabled=true;
+    finalizeAnswer(q,false,0,'(no answer)',(q.acceptedAnswers&&q.acceptedAnswers[0])||'—',null,true);
+  } else if(type==='slider'){
+    const input=document.getElementById('q-slider-input'); if(input)input.disabled=true;
+    finalizeAnswer(q,false,0,'(no answer)',String(q.sliderCorrect),null,true);
+  } else if(type==='puzzle'){
+    finalizeAnswer(q,false,0,'(no answer)',q.puzzleItems.join(' → '),null,true);
+  } else {
+    answerQ(-1); // mcq / truefalse
+  }
 }
 function answerQ(idx){
   if(!quizState||quizState.phase!=='question')return;
@@ -2210,6 +2504,7 @@ async function finishQuiz(){
   if(quizState.finished)return; // guard: 'done' update can fire more than once
   quizState.finished=true;
   clearInterval(timerInterval);
+  stopQuizMusic();
   const finalScore=quizState.score;
   const sb=getSupabase();
   if(sb&&currentUser.supabaseId){
@@ -2222,7 +2517,8 @@ async function finishQuiz(){
       user_id:currentUser.supabaseId,quiz_id:activeQuiz.id,quiz_name:activeQuiz.name,
       score:finalScore,played_at:new Date().toISOString(),
       mode:quizState.isLive?'live':'solo',
-      live_session_id:quizState.isLive?(myPlayerSession.sessionId||null):null
+      live_session_id:quizState.isLive?(myPlayerSession.sessionId||null):null,
+      breakdown:quizState.results
     }]);
     if(!saveErr){
       const newTotal=(currentUser.total_score||0)+finalScore;
@@ -2273,12 +2569,25 @@ async function finishQuiz(){
   } else {
     document.getElementById('qd-liveboard').style.display='none';
   }
-  document.getElementById('qd-breakdown').innerHTML=quizState.results.map((r,i)=>`
-    <div style="display:flex;justify-content:space-between;padding:8px 12px;background:rgba(255,255,255,.1);border-radius:8px;margin-bottom:6px;font-size:13px">
-      <span style="opacity:.9">Q${i+1}: ${r.q.substring(0,42)}…</span>
-      <span style="font-weight:700;color:${r.correct?'#F9A825':'#ff8a80'}">${r.correct?'+'+r.earned:'0'}</span>
-    </div>`).join('');
   goTo('s-quizdone');
+}
+// Shared "question breakdown" modal — results is an array of
+// {q,correct,earned,chosen,correctAnswer} entries (same shape saved to the
+// scores.breakdown column), quizName is shown in the modal title.
+function showBreakdownModal(results,quizName){
+  document.getElementById('breakdown-modal-title').textContent='📋 '+(quizName||'Quiz')+' — Breakdown';
+  document.getElementById('breakdown-modal-body').innerHTML=(results||[]).map((r,i)=>`
+    <div style="padding:10px 12px;background:${r.correct?'#e8f5e9':'#fde8e8'};border-radius:10px;margin-bottom:8px;color:#1a2e1a">
+      <div style="display:flex;justify-content:space-between;gap:10px">
+        <span style="font-weight:700;font-size:13px;flex:1">Q${i+1}: ${r.q}</span>
+        <span style="font-weight:800;font-size:13px;color:${r.correct?'var(--success)':'var(--danger)'};white-space:nowrap">${r.correct?'+'+r.earned:'0'} pts</span>
+      </div>
+      ${r.chosen!==undefined?`<div style="font-size:12px;color:#4a6a4a;margin-top:4px">Answered: ${r.chosen===null||r.chosen===-1?'(no answer)':r.chosen}${r.correctAnswer!==undefined&&!r.correct?' · Correct: '+r.correctAnswer:''}</div>`:''}
+    </div>`).join('')||'<div style="color:rgba(255,255,255,.6);text-align:center;padding:20px">No breakdown available for this attempt.</div>';
+  document.getElementById('breakdown-modal').style.display='flex';
+}
+function closeBreakdownModal(){
+  document.getElementById('breakdown-modal').style.display='none';
 }
 
 // =====================================================================
@@ -2460,10 +2769,48 @@ function renderAdminQuizzes(){
       </div>
       <div style="background:#f0faf4;border-radius:12px;padding:14px;margin-bottom:10px">
         <div style="font-weight:700;font-size:14px;margin-bottom:10px;color:var(--primary)">Add Question</div>
-        <input type="text" id="nq-qtext" placeholder="Question text..." style="margin-bottom:8px"/>
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px">
+          <select id="nq-qtype" onchange="nqTypeChanged()">
+            <option value="mcq">🔤 Multiple Choice</option>
+            <option value="truefalse">✔️ True / False</option>
+            <option value="type_answer">✍️ Type Answer</option>
+            <option value="slider">🎚️ Slider</option>
+            <option value="puzzle">🧩 Puzzle (Order the items)</option>
+          </select>
+          <input type="text" id="nq-image" placeholder="Image URL (optional)..."/>
+        </div>
+        <input type="text" id="nq-qtext" placeholder="Question text..." style="margin-bottom:8px"/>
+
+        <!-- MCQ fields -->
+        <div id="nq-fields-mcq" style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px">
           ${[0,1,2,3].map(i=>`<div style="display:flex;gap:6px;align-items:center"><input type="radio" name="nq-correct" value="${i}" ${i===0?'checked':''}/><input type="text" id="nq-opt${i}" placeholder="Option ${i+1}" style="flex:1;border-color:${OPT_COLORS[i]}88"/></div>`).join('')}
         </div>
+
+        <!-- True/False fields -->
+        <div id="nq-fields-truefalse" style="display:none;margin-bottom:8px">
+          <select id="nq-tf-correct" style="width:auto"><option value="0">Correct answer: True</option><option value="1">Correct answer: False</option></select>
+        </div>
+
+        <!-- Type Answer fields -->
+        <div id="nq-fields-type_answer" style="display:none;margin-bottom:8px">
+          <input type="text" id="nq-accepted" placeholder="Accepted answer(s), comma separated (e.g. Moses, moses)"/>
+        </div>
+
+        <!-- Slider fields -->
+        <div id="nq-fields-slider" style="display:none;margin-bottom:8px">
+          <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:6px">
+            <input type="number" id="nq-slider-min" placeholder="Min" value="0"/>
+            <input type="number" id="nq-slider-max" placeholder="Max" value="100"/>
+            <input type="number" id="nq-slider-step" placeholder="Step" value="1"/>
+            <input type="number" id="nq-slider-correct" placeholder="Correct value"/>
+          </div>
+        </div>
+
+        <!-- Puzzle fields -->
+        <div id="nq-fields-puzzle" style="display:none;margin-bottom:8px">
+          <textarea id="nq-puzzle-items" placeholder="One item per line, IN THE CORRECT ORDER..." rows="4" style="width:100%;border-radius:10px;border:1px solid var(--border);padding:8px;font-family:inherit"></textarea>
+        </div>
+
         <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center">
           <select id="nq-time" style="width:auto">${[10,15,20,30,45,60].map(t=>`<option value="${t}"${t===20?' selected':''}>${t}s</option>`).join('')}</select>
           <select id="nq-pts" style="width:auto"><option value="500">500 pts</option><option value="1000" selected>1000 pts</option><option value="2000">2000 pts</option></select>
@@ -2489,18 +2836,55 @@ function renderAdminQuizzes(){
       </div>`).join('')}`;
   window._nqQuestions=[];
 }
+function nqTypeChanged(){
+  const type=document.getElementById('nq-qtype').value;
+  ['mcq','truefalse','type_answer','slider','puzzle'].forEach(t=>{
+    const el=document.getElementById('nq-fields-'+t);
+    if(el)el.style.display=(t===type)?'':'none';
+  });
+}
 function addNQQuestion(){
+  const type=document.getElementById('nq-qtype').value;
   const text=document.getElementById('nq-qtext').value.trim();
-  const opts=[0,1,2,3].map(i=>document.getElementById('nq-opt'+i).value.trim());
-  const correct=+document.querySelector('input[name="nq-correct"]:checked').value;
+  const image=document.getElementById('nq-image').value.trim();
   const time=+document.getElementById('nq-time').value;
   const points=+document.getElementById('nq-pts').value;
-  if(!text||opts.some(o=>!o))return notify('Fill all question fields','error');
+  if(!text)return notify('Enter the question text','error');
   if(!window._nqQuestions)window._nqQuestions=[];
-  window._nqQuestions.push({id:window._nqQuestions.length+1,text,options:opts,correct,time,points});
-  document.getElementById('nq-qlist').innerHTML=`<strong>${window._nqQuestions.length} question(s):</strong><br>`+window._nqQuestions.map((q,i)=>`• Q${i+1}: ${q.text}`).join('<br>');
+  let q=null;
+  if(type==='mcq'){
+    const opts=[0,1,2,3].map(i=>document.getElementById('nq-opt'+i).value.trim());
+    const correct=+document.querySelector('input[name="nq-correct"]:checked').value;
+    if(opts.some(o=>!o))return notify('Fill all 4 answer options','error');
+    q={type:'mcq',text,image,options:opts,correct,time,points};
+  } else if(type==='truefalse'){
+    const correct=+document.getElementById('nq-tf-correct').value;
+    q={type:'truefalse',text,image,options:['True','False'],correct,time,points};
+  } else if(type==='type_answer'){
+    const accepted=document.getElementById('nq-accepted').value.split(',').map(a=>a.trim()).filter(Boolean);
+    if(accepted.length===0)return notify('Enter at least one accepted answer','error');
+    q={type:'type_answer',text,image,acceptedAnswers:accepted,time,points};
+  } else if(type==='slider'){
+    const sliderMin=+document.getElementById('nq-slider-min').value;
+    const sliderMax=+document.getElementById('nq-slider-max').value;
+    const sliderStep=+document.getElementById('nq-slider-step').value||1;
+    const sliderCorrect=+document.getElementById('nq-slider-correct').value;
+    if(document.getElementById('nq-slider-correct').value===''||isNaN(sliderCorrect))return notify('Enter the correct slider value','error');
+    q={type:'slider',text,image,sliderMin,sliderMax,sliderStep,sliderCorrect,time,points};
+  } else if(type==='puzzle'){
+    const items=document.getElementById('nq-puzzle-items').value.split('\n').map(a=>a.trim()).filter(Boolean);
+    if(items.length<2)return notify('Enter at least 2 items, one per line, in the correct order','error');
+    q={type:'puzzle',text,image,puzzleItems:items,time,points};
+  }
+  q.id=window._nqQuestions.length+1;
+  window._nqQuestions.push(q);
+  document.getElementById('nq-qlist').innerHTML=`<strong>${window._nqQuestions.length} question(s):</strong><br>`+window._nqQuestions.map((qq,i)=>`• Q${i+1} [${qq.type}]: ${qq.text}`).join('<br>');
   document.getElementById('nq-qtext').value='';
-  [0,1,2,3].forEach(i=>document.getElementById('nq-opt'+i).value='');
+  document.getElementById('nq-image').value='';
+  [0,1,2,3].forEach(i=>{const el=document.getElementById('nq-opt'+i);if(el)el.value='';});
+  const accEl=document.getElementById('nq-accepted');if(accEl)accEl.value='';
+  const puzEl=document.getElementById('nq-puzzle-items');if(puzEl)puzEl.value='';
+  const sliderCorrectEl=document.getElementById('nq-slider-correct');if(sliderCorrectEl)sliderCorrectEl.value='';
   notify('Question added ✓');
 }
 async function publishQuiz(){
@@ -2602,9 +2986,9 @@ function renderAdminReports(){
       <div style="font-weight:700;font-size:15px;color:var(--primary);margin-bottom:12px">Full Contestant Report</div>
       <table style="width:100%;border-collapse:collapse;font-size:13px">
         <thead><tr style="background:#e8f5e9">
-          ${['Rank','Name','Email','Total Score','Quizzes','Avg/Quiz','Joined'].map(h=>`<th style="padding:10px 8px;text-align:left;font-weight:700;color:var(--primary)">${h}</th>`).join('')}
+          ${['Rank','Name','Email','Total Score','Quizzes','Avg/Quiz','Joined',''].map(h=>`<th style="padding:10px 8px;text-align:left;font-weight:700;color:var(--primary)">${h}</th>`).join('')}
         </tr></thead>
-        <tbody>${lb.length===0?'<tr><td colspan="7" style="padding:20px;text-align:center;color:var(--muted)">No data yet</td></tr>':lb.map((u,i)=>`
+        <tbody>${lb.length===0?'<tr><td colspan="8" style="padding:20px;text-align:center;color:var(--muted)">No data yet</td></tr>':lb.map((u,i)=>`
           <tr style="background:${i%2===0?'#fff':'#f9fffe'};border-bottom:1px solid var(--border)">
             <td style="padding:10px 8px;font-weight:800;color:${i===0?'#F9A825':'var(--primary)'};">#${i+1}</td>
             <td style="padding:10px 8px;font-weight:600">${u.name||'—'}</td>
@@ -2613,10 +2997,33 @@ function renderAdminReports(){
             <td style="padding:10px 8px">${(u.scores||[]).length}</td>
             <td style="padding:10px 8px">${(u.scores||[]).length>0?Math.round((u.totalScore||0)/(u.scores||[]).length).toLocaleString():0}</td>
             <td style="padding:10px 8px;color:var(--muted)">${u.joinDate||'—'}</td>
+            <td style="padding:10px 8px">${(u.scores||[]).length>0?`<button class="gbtn" onclick="showPlayerAttemptsModal('${u.id}')" style="padding:5px 12px;font-size:11px;background:var(--secondary)">🔍 Attempts</button>`:''}</td>
           </tr>`).join('')}
         </tbody>
       </table>
     </div>`;
+}
+// Admin drill-down: every quiz attempt (solo or live) for one player, each
+// with its own "View Breakdown" button reusing the same modal the player
+// sees on their own Reports tab.
+function showPlayerAttemptsModal(userId){
+  const u=users.find(x=>x.id===userId);
+  if(!u)return;
+  const attempts=[...(u.scores||[])].sort((a,b)=>(b.date||'').localeCompare(a.date||''));
+  window._adminAttemptLookup={};
+  attempts.forEach(a=>{if(a.id)window._adminAttemptLookup[a.id]=a.breakdown;});
+  document.getElementById('breakdown-modal-title').textContent='📋 '+(u.name||'Player')+' — All Attempts';
+  document.getElementById('breakdown-modal-body').innerHTML=attempts.length===0
+    ?'<div style="color:rgba(255,255,255,.6);text-align:center;padding:20px">No attempts yet.</div>'
+    :attempts.map(a=>`
+      <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;padding:10px 12px;background:rgba(255,255,255,.08);border-radius:10px;margin-bottom:8px">
+        <div>
+          <div style="font-weight:700;font-size:13px;color:#fff">${a.quiz}</div>
+          <div style="font-size:11px;color:rgba(255,255,255,.55)">${a.mode==='live'?'🎮 Live':'📖 Solo'} · ${a.date||'—'} · ${(a.score||0).toLocaleString()} pts</div>
+        </div>
+        ${a.breakdown?`<button class="gbtn" onclick="showBreakdownModal(window._adminAttemptLookup['${a.id}'],'${(a.quiz||'').replace(/'/g,"\\'")}')" style="padding:6px 14px;font-size:11px;background:var(--secondary);white-space:nowrap">📋 View</button>`:'<span style="font-size:11px;color:rgba(255,255,255,.4)">No breakdown</span>'}
+      </div>`).join('');
+  document.getElementById('breakdown-modal').style.display='flex';
 }
 
 function renderAdminBank(){
