@@ -724,6 +724,11 @@ async function restoreLiveGameAsPlayer(persisted){
     subscribeToGameAsPlayer(session.id);
     updateLiveHud(session.id);
   } else if(session.phase==='podium'){
+    // quizState must exist so the realtime 'question' listener (which only
+    // acts `if(quizState)`) actually fires when the host advances — without
+    // this, refreshing during the podium screen stranded the player there
+    // forever even after the host moved everyone else to the next question.
+    quizState=quizState||{currentQ:session.current_question,timeLeft:0,answered:null,score:myPlayerSession.score||0,results:[],phase:'podium',isLive:true,finished:false};
     subscribeToGameAsPlayer(session.id);
     showPodiumAsPlayer(session.current_question);
   }
@@ -978,9 +983,19 @@ async function loadAllData(){
   const sb=getSupabase();
   if(!sb) return;
 
-  // Load all profiles
+  // Load all profiles (rows returned depend on RLS: your own row always,
+  // every row if you're an admin — see fix-lmttw-database.sql)
   const {data:profiles,error:pErr}=await sb.from('profiles').select('*');
   if(pErr){console.error('profiles load error',pErr);return;}
+
+  // Safe public name lookup (id + name ONLY, no PII) — every signed-in user
+  // can read this regardless of the profiles RLS above, so per-quiz
+  // leaderboards and podiums can show everyone's real name instead of
+  // 'Unknown' even for players whose full profile row isn't visible to you.
+  const {data:publicNames,error:pubErr}=await sb.from('profiles_public').select('id,name');
+  if(pubErr)console.warn('profiles_public load error (run fix-lmttw-database.sql)',pubErr);
+  const nameById={};
+  (publicNames||[]).forEach(p=>{nameById[p.id]=p.name;});
 
   // Load all scores
   const {data:scores,error:sErr}=await sb.from('scores').select('*');
@@ -1004,12 +1019,12 @@ async function loadAllData(){
   users = (profiles||[]).map(p=>{
     const myScores = scoreList
       .filter(s=>s.user_id===p.id)
-      .map(s=>({quiz:s.quiz_name||'Unknown',quizId:s.quiz_id,score:s.score||0,date:(s.played_at||'').split('T')[0]}));
+      .map(s=>({quiz:s.quiz_name||'Unknown',quizId:s.quiz_id,score:s.score||0,date:(s.played_at||'').split('T')[0],mode:s.mode||'live'}));
     const totalScore = p.total_score || myScores.reduce((acc,s)=>acc+s.score,0);
     return {
       id: p.id,
       supabaseId: p.id,
-      name: p.name||'—',
+      name: p.name||nameById[p.id]||'—',
       email: p.email||'—',
       phone: p.phone||'—',
       role: p.role||'contestant',
@@ -1024,6 +1039,24 @@ async function loadAllData(){
         accountNumber: p.bank_account||'—'
       }
     };
+  });
+  // Fill in name-only stub entries for any user id we've seen (via scores or
+  // profiles_public) whose full profile row isn't visible to us under RLS —
+  // otherwise getQuizLeaderboard()'s users.find() comes back empty and shows
+  // 'Unknown' for every player except yourself.
+  const knownIds=new Set(users.map(u=>u.id));
+  const stubIds=new Set([...scoreList.map(s=>s.user_id), ...Object.keys(nameById)]);
+  stubIds.forEach(id=>{
+    if(id&&!knownIds.has(id)){
+      const myScores=scoreList.filter(s=>s.user_id===id).map(s=>({quiz:s.quiz_name||'Unknown',quizId:s.quiz_id,score:s.score||0,date:(s.played_at||'').split('T')[0],mode:s.mode||'live'}));
+      users.push({
+        id, supabaseId:id, name:nameById[id]||'Player', email:'—', phone:'—',
+        role:'contestant', status:'approved', joinDate:'',
+        totalScore:myScores.reduce((a,s)=>a+s.score,0), scores:myScores, flagged:false,
+        bank:{name:'—',bankName:'—',accountNumber:'—'}
+      });
+      knownIds.add(id);
+    }
   });
 
   // Map quizzes — questions stored as jsonb array
