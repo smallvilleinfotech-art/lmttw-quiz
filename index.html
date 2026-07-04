@@ -386,6 +386,46 @@ html,body{overflow-x:hidden;max-width:100vw}
   </div>
 </div>
 
+<!-- Kahoot-style media picker for question images: upload from device,
+     search online (needs an Unsplash key — see UNSPLASH_ACCESS_KEY), or
+     paste a URL directly. -->
+<div id="media-picker-modal" class="modal-backdrop" style="display:none" onclick="if(event.target===this)closeMediaPicker()">
+  <div class="modal-card" style="max-width:520px;max-height:85vh;overflow-y:auto;color:#1a2e1a;background:#fff">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">
+      <div style="font-weight:800;font-size:16px;color:var(--primary)">Add an image</div>
+      <button onclick="closeMediaPicker()" style="background:none;border:none;font-size:22px;cursor:pointer;color:var(--muted)">×</button>
+    </div>
+    <div style="display:flex;gap:6px;margin-bottom:14px;border-bottom:2px solid var(--border)">
+      <button type="button" class="mp-tab active" data-tab="upload" onclick="mpSwitchTab('upload')" style="flex:1;padding:9px;border:none;background:none;cursor:pointer;font-weight:700;font-size:13px;border-bottom:3px solid var(--primary);color:var(--primary)">📤 Upload</button>
+      <button type="button" class="mp-tab" data-tab="search" onclick="mpSwitchTab('search')" style="flex:1;padding:9px;border:none;background:none;cursor:pointer;font-weight:700;font-size:13px;border-bottom:3px solid transparent;color:var(--muted)">🔍 Search online</button>
+      <button type="button" class="mp-tab" data-tab="url" onclick="mpSwitchTab('url')" style="flex:1;padding:9px;border:none;background:none;cursor:pointer;font-weight:700;font-size:13px;border-bottom:3px solid transparent;color:var(--muted)">🔗 Paste URL</button>
+    </div>
+
+    <div id="mp-pane-upload">
+      <input type="file" id="mp-file-input" accept="image/png,image/jpeg,image/webp,image/gif" style="display:none" onchange="mpUploadFile(this.files[0])"/>
+      <div onclick="document.getElementById('mp-file-input').click()" style="border:2px dashed var(--border);border-radius:14px;padding:36px 20px;text-align:center;cursor:pointer;background:#f0faf4">
+        <div style="font-size:28px;margin-bottom:8px">📁</div>
+        <div style="font-weight:700;color:var(--primary);margin-bottom:4px">Click to choose a file</div>
+        <div style="font-size:12px;color:var(--muted)">PNG, JPEG, WEBP, or GIF — up to 5MB</div>
+      </div>
+      <div id="mp-upload-status" style="margin-top:10px;font-size:13px;color:var(--muted);text-align:center"></div>
+    </div>
+
+    <div id="mp-pane-search" style="display:none">
+      <div style="display:flex;gap:8px;margin-bottom:12px">
+        <input type="text" id="mp-search-input" placeholder="Search for an image..." onkeydown="if(event.key==='Enter')mpDoSearch()" style="flex:1"/>
+        <button class="gbtn" onclick="mpDoSearch()" style="padding:9px 16px;font-size:13px;background:var(--primary)">Search</button>
+      </div>
+      <div id="mp-search-results" style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;max-height:320px;overflow-y:auto"></div>
+    </div>
+
+    <div id="mp-pane-url" style="display:none">
+      <input type="text" id="mp-url-input" placeholder="https://example.com/image.jpg"/>
+      <button class="gbtn" onclick="mpUseUrl()" style="margin-top:10px;padding:9px 16px;font-size:13px;background:var(--primary);width:100%">Use this URL</button>
+    </div>
+  </div>
+</div>
+
 <!-- ==================== CONTESTANT DASHBOARD ==================== -->
 <div class="screen" id="s-contestant">
   <div style="background:linear-gradient(135deg,var(--primary),var(--primaryDk));padding:14px 20px;display:flex;align-items:center;justify-content:space-between">
@@ -596,6 +636,12 @@ html,body{overflow-x:hidden;max-width:100vw}
 const SUPABASE_URL = 'https://hnmjfnrlbykypxqobtja.supabase.co';       // e.g. https://abcxyz.supabase.co
 const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImhubWpmbnJsYnlreXB4cW9idGphIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODI3MDgzMTUsImV4cCI6MjA5ODI4NDMxNX0.RB6JzDhYIJnaOPTVq2XIpT2jrGAicfHt6pGsxR3rgOA';
 
+// Optional: get a free Access Key at https://unsplash.com/developers (50
+// requests/hour on the free tier — plenty for building quizzes) to enable
+// the "Search online" tab in the question-image picker. Leave as-is to
+// keep that tab showing setup instructions instead of a live search.
+const UNSPLASH_ACCESS_KEY = 'YOUR_UNSPLASH_ACCESS_KEY';
+
 let _supabase = null;
 function getSupabase() {
   if (_supabase) return _supabase;
@@ -634,9 +680,97 @@ function clearPersistedSession(){
   myPlayerSession.streak=0;
 }
 
+// A host refreshing mid-livegame needs to resume hosting, not just get
+// dropped back to their dashboard — separate key so it can't collide with
+// a player-session entry (an admin could in principle also join as a
+// player in another tab).
+const HOST_PERSIST_KEY='lmtw_host_session';
+function persistHostSession(){
+  try{
+    localStorage.setItem(HOST_PERSIST_KEY,JSON.stringify({sessionId:liveGame.sessionId,quizId:liveGame.quizId,pin:liveGame.pin}));
+  }catch(e){/* localStorage unavailable, ignore */}
+}
+function loadPersistedHostSession(){
+  try{
+    const raw=localStorage.getItem(HOST_PERSIST_KEY);
+    return raw?JSON.parse(raw):null;
+  }catch(e){return null;}
+}
+function clearPersistedHostSession(){
+  try{localStorage.removeItem(HOST_PERSIST_KEY);}catch(e){}
+}
+
 // =====================================================================
 //  APP BOOT — restores login + in-progress live game on page refresh
 // =====================================================================
+// A host refreshing mid-livegame (lobby/question/podium) resumes exactly
+// there instead of landing back on the plain admin dashboard.
+async function restoreHostLiveGame(persisted){
+  const sb=getSupabase();
+  const {data:session,error}=await sb.from('live_sessions').select('*').eq('id',persisted.sessionId).single();
+  if(error||!session||session.phase==='done'){
+    clearPersistedHostSession();
+    goTo('s-admin');renderAdminDashboard();
+    return;
+  }
+  const qz=quizzes.find(q=>q.id===session.quiz_id);
+  if(!qz){clearPersistedHostSession();goTo('s-admin');renderAdminDashboard();return;}
+  liveGame.pin=persisted.pin||session.pin;
+  liveGame.quizId=session.quiz_id;
+  liveGame.sessionId=session.id;
+  liveGame.currentQ=session.current_question||0;
+  liveGame.phase=session.phase;
+  // Randomize-order settings live only in memory, so a refresh can't perfectly
+  // reconstruct a shuffled question order — falls back to the quiz's stored
+  // order, which only matters if "randomize questions" was turned on.
+  liveGame.questionsOverride=null;
+  liveGame.totalAnswered=0;
+
+  // Pull every current player so the lobby list / player count is accurate
+  // immediately, rather than waiting for the next realtime event.
+  const {data:players}=await sb.from('live_players').select('*').eq('session_id',session.id);
+  liveGame.players={};
+  (players||[]).forEach(p=>{ liveGame.players[p.player_id||p.auth_uid]={name:p.nickname,score:p.score||0,answers:[]}; });
+
+  const q0=getActiveQuestion();
+  const numOpts=q0&&Array.isArray(q0.options)?q0.options.length:4;
+  liveGame.answerCounts=new Array(numOpts).fill(0);
+
+  subscribeToSessionAsHost(session.id);
+  document.getElementById('lh-quizname').textContent=qz.name;
+  document.getElementById('lh-pin').textContent=liveGame.pin;
+  document.getElementById('lh-pinbig').textContent=liveGame.pin;
+  goTo('s-livehost');
+
+  if(session.phase==='lobby'){
+    document.getElementById('lh-lobby').style.display='block';
+    document.getElementById('lh-active').style.display='none';
+    document.getElementById('lh-postboard').style.display='none';
+    refreshLobbyHostUI();
+    startLobbyMusic();
+  } else if(session.phase==='question'){
+    document.getElementById('lh-lobby').style.display='none';
+    document.getElementById('lh-active').style.display='flex';
+    document.getElementById('lh-postboard').style.display='none';
+    renderHostQuestion();
+    startQuizMusic();
+    const elapsed=session.question_started_at?Math.floor((Date.now()-new Date(session.question_started_at).getTime())/1000):0;
+    const remaining=Math.max(0,q0.time-elapsed);
+    checkAllAnsweredAndAdvance(session.id);
+    if(remaining<=0){ hostRevealAnswers(); } else { hostStartTimer(remaining); }
+  } else if(session.phase==='podium'){
+    document.getElementById('lh-lobby').style.display='none';
+    document.getElementById('lh-active').style.display='none';
+    document.getElementById('lh-postboard').style.display='none';
+    startQuizMusic();
+    const {data:rankedPlayers}=await sb.from('live_players').select('nickname,score,auth_uid').eq('session_id',session.id).order('score',{ascending:false});
+    renderPodiumScreen(rankedPlayers||[],liveGame.currentQ,true);
+    goTo('s-podium');
+    if(liveGame.settings.autoplay){
+      setTimeout(()=>{ if(liveGame.phase==='podium')hostNextQuestion(); },4000);
+    }
+  }
+}
 async function bootApp(){
   const sb=getSupabase();
   if(!sb){goTo('s-landing');return;}
@@ -674,6 +808,13 @@ async function bootApp(){
     return;
   }
   await loadAllData();
+
+  // If this admin was hosting a live game, resume hosting it instead of the dashboard
+  const persistedHost=loadPersistedHostSession();
+  if(currentUser.role==='admin'&&persistedHost&&persistedHost.sessionId){
+    await restoreHostLiveGame(persistedHost);
+    return;
+  }
 
   // If this user has an in-progress live game, restore that instead of the dashboard
   const persisted=loadPersistedSession();
@@ -1402,7 +1543,8 @@ async function hostCreateSession(quizId){
   liveGame.currentQ=0;
   liveGame.phase='lobby';
   liveGame.totalAnswered=0;
-  liveGame.answerCounts=new Array(qz.questions[0].options.length).fill(0);
+  const firstOpts=qz.questions[0]&&Array.isArray(qz.questions[0].options)?qz.questions[0].options.length:4;
+  liveGame.answerCounts=new Array(firstOpts).fill(0);
   const sb=getSupabase();
   if(sb){
     const {data,error}=await sb.from('live_sessions').insert([{
@@ -1412,6 +1554,7 @@ async function hostCreateSession(quizId){
     if(error){notify('DB error: '+error.message,'error');return;}
     liveGame.sessionId=data.id;
     subscribeToSessionAsHost(data.id);
+    persistHostSession();
   }
   document.getElementById('lh-quizname').textContent=qz.name;
   document.getElementById('lh-pin').textContent=pin;
@@ -1456,7 +1599,8 @@ async function hostStartGame(){
   liveGame.phase='question';
   liveGame.currentQ=0;
   const q0=getActiveQuestion();
-  liveGame.answerCounts=new Array(q0.options.length).fill(0);
+  const q0Opts=q0&&Array.isArray(q0.options)?q0.options.length:4;
+  liveGame.answerCounts=new Array(q0Opts).fill(0);
   liveGame.totalAnswered=0;
   const sb=getSupabase();
   if(sb){
@@ -1521,10 +1665,10 @@ function renderHostQuestion(){
   sh.classList.add(skins[liveGame.currentQ%skins.length]);
   sfxCountdownStart();
 }
-function hostStartTimer(){
+function hostStartTimer(startFrom){
   if(liveGame.hostTimer)clearInterval(liveGame.hostTimer);
   const q=getActiveQuestion();
-  let t=q.time;
+  let t=(typeof startFrom==='number')?startFrom:q.time;
   const el=document.getElementById('lh-timer');
   if(el){el.textContent=t;el.classList.remove('lh-timer-pulse');}
   liveGame.hostTimer=setInterval(()=>{
@@ -1540,7 +1684,10 @@ function hostStartTimer(){
 }
 async function hostRevealAnswers(){
   const q=getActiveQuestion();
-  // Highlight correct answer green, grey out wrong, animate bars
+  // Highlight correct answer green, grey out wrong, animate bars — only
+  // meaningful for option-based types (mcq/truefalse); other types show
+  // their own simplified panel instead (see renderHostQuestion).
+  if(Array.isArray(q.options)){
   q.options.forEach((_,i)=>{
     const card=document.getElementById('lh-opt-bar-'+i)?.closest('.lh-optcard');
     if(!card)return;
@@ -1552,6 +1699,7 @@ async function hostRevealAnswers(){
       card.style.opacity='.45';
     }
   });
+  }
   const sb=getSupabase();
   let players=[];
   if(sb){
@@ -1588,6 +1736,7 @@ async function hostNextQuestion(){
     sfxFanfare();
     const sb=getSupabase();
     if(sb)await sb.from('live_sessions').update({phase:'done',ended_at:new Date().toISOString()}).eq('id',liveGame.sessionId);
+    clearPersistedHostSession();
     goTo('s-livehost');
     document.getElementById('lh-active').style.display='none';
     document.getElementById('lh-postboard').style.display='block';
@@ -1620,6 +1769,7 @@ async function hostEndQuizNow(){
   sfxFanfare();
   const sb=getSupabase();
   if(sb)await sb.from('live_sessions').update({phase:'done',ended_at:new Date().toISOString()}).eq('id',liveGame.sessionId);
+  clearPersistedHostSession();
   goTo('s-livehost');
   document.getElementById('lh-active').style.display='none';
   document.getElementById('lh-postboard').style.display='block';
@@ -1655,6 +1805,7 @@ async function endLiveGame(){
   notify('Game ended & results saved! ✅');
   stopLobbyMusic();
   stopQuizMusic();
+  clearPersistedHostSession();
   goTo('s-admin');
   aTab('a-leaderboard',document.querySelectorAll('#s-admin .tab-btn')[4]);
 }
@@ -1779,6 +1930,12 @@ async function reportAnswerToHost(optIdx){
       p_session_id:myPlayerSession.sessionId,
       p_chosen_option:optIdx
     });
+    // The host's live answer-distribution bars are computed purely from
+    // last_answer/last_question_index on each player's live_players row
+    // (see checkAllAnsweredAndAdvance). Whatever submit_live_answer does or
+    // doesn't do with those two columns, set them explicitly here so the
+    // bars always update — this is what was silently keeping every bar at 0.
+    sb.from('live_players').update({last_answer:optIdx,last_question_index:quizState?quizState.currentQ:0}).eq('session_id',myPlayerSession.sessionId).eq('auth_uid',myPlayerSession.authUid).then(()=>{}).catch(()=>{});
     if(!error&&data&&quizState&&quizState.results.length){
       const lastResult=quizState.results[quizState.results.length-1];
       const diff=(data.awarded||0)-lastResult.earned;
@@ -2658,7 +2815,7 @@ function renderAdminDashboard(){
 function destroyChart(id){const c=Chart.getChart(document.getElementById(id));if(c)c.destroy();}
 
 function renderAdminUsers(){
-  const all=users.filter(u=>u.role==='contestant');
+  const all=users.filter(u=>u.id!==currentUser.id);
   document.getElementById('a-users').innerHTML=`
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;flex-wrap:wrap;gap:10px">
       <div style="font-weight:800;font-size:20px;color:var(--primary)">👥 User Management</div>
@@ -2673,7 +2830,7 @@ function renderAdminUsers(){
         <thead>
           <tr style="background:#e8f5e9">
             <th style="padding:10px 8px;text-align:left;color:var(--primary)"><input type="checkbox" id="chk-all" onchange="toggleAllPending(this)"/></th>
-            ${['Name','Email','Phone','Joined','Bank','Status','Action'].map(h=>`<th style="padding:10px 8px;text-align:left;font-weight:700;color:var(--primary)">${h}</th>`).join('')}
+            ${['Name','Email','Phone','Joined','Bank','Status','Role','Action'].map(h=>`<th style="padding:10px 8px;text-align:left;font-weight:700;color:var(--primary)">${h}</th>`).join('')}
           </tr>
         </thead>
         <tbody id="usr-tbody"></tbody>
@@ -2684,7 +2841,7 @@ function renderAdminUsers(){
 }
 function renderUserRows(list){
   document.getElementById('usr-tbody').innerHTML=list.length===0
-    ?'<tr><td colspan="8" style="padding:20px;text-align:center;color:var(--muted)">No users found</td></tr>'
+    ?'<tr><td colspan="9" style="padding:20px;text-align:center;color:var(--muted)">No users found</td></tr>'
     :list.map((u,i)=>`
     <tr style="background:${i%2===0?'#fff':'#f9fffe'};border-bottom:1px solid var(--border)">
       <td style="padding:10px 8px">${u.status==='pending'?`<input type="checkbox" class="pend-chk" value="${u.id}"/>`:'—'}</td>
@@ -2694,13 +2851,37 @@ function renderUserRows(list){
       <td style="padding:10px 8px;color:var(--muted)">${u.joinDate||'—'}</td>
       <td style="padding:10px 8px;font-size:12px">${u.bank?.bankName||'—'}</td>
       <td style="padding:10px 8px"><span class="badge" style="background:${u.status==='approved'?'#e8f5e9':u.status==='pending'?'#fff8e1':'#fde8e8'};color:${u.status==='approved'?'var(--success)':u.status==='pending'?'var(--warning)':'var(--danger)'}">${u.status}</span></td>
-      <td style="padding:10px 8px">${u.status==='pending'?`<button class="gbtn" onclick="approveUser('${u.id}')" style="padding:6px 12px;font-size:12px;background:var(--success)">Approve</button>`:''}</td>
+      <td style="padding:10px 8px"><span class="badge" style="background:${u.role==='admin'?'#fff3e0':'#e3f2fd'};color:${u.role==='admin'?'#e65100':'var(--secondary)'}">${u.role==='admin'?'⚙️ Admin':'👤 Contestant'}</span></td>
+      <td style="padding:10px 8px;display:flex;gap:6px;flex-wrap:wrap">
+        ${u.status==='pending'?`<button class="gbtn" onclick="approveUser('${u.id}')" style="padding:6px 12px;font-size:12px;background:var(--success)">Approve</button>`:''}
+        ${u.role==='admin'
+          ?`<button class="gbtn" onclick="setUserRole('${u.id}','contestant','${(u.name||'this user').replace(/'/g,"\\'")}')" style="padding:6px 12px;font-size:12px;background:var(--muted)">Remove Admin</button>`
+          :`<button class="gbtn" onclick="setUserRole('${u.id}','admin','${(u.name||'this user').replace(/'/g,"\\'")}')" style="padding:6px 12px;font-size:12px;background:#e65100">⚙️ Make Admin</button>`}
+      </td>
     </tr>`).join('');
 }
 function filterUsers(){
   const q=document.getElementById('usr-search').value.toLowerCase();
-  const list=users.filter(u=>u.role==='contestant'&&((u.name||'').toLowerCase().includes(q)||(u.email||'').toLowerCase().includes(q)));
+  const list=users.filter(u=>u.id!==currentUser.id&&((u.name||'').toLowerCase().includes(q)||(u.email||'').toLowerCase().includes(q)));
   renderUserRows(list);
+}
+// Promote a contestant to full admin, or demote an admin back to contestant
+// — a single click, matching the "make them an admin with full rights"
+// request. Confirms first since this is a meaningful privilege change.
+async function setUserRole(id,newRole,name){
+  const verb=newRole==='admin'?'make':'remove admin rights from';
+  if(!confirm(`Are you sure you want to ${verb} ${name}${newRole==='admin'?' an admin':''}? ${newRole==='admin'?'They will get full admin access (manage users, quizzes, live games, reports, bank exports).':''}`))return;
+  const sb=getSupabase();
+  if(sb){
+    const {error}=await sb.from('profiles').update({role:newRole}).eq('id',id);
+    if(error){notify('Error updating role: '+error.message,'error');return;}
+    await loadAllData();
+  } else {
+    const u=users.find(x=>x.id===id);
+    if(u)u.role=newRole;
+  }
+  notify(newRole==='admin'?`${name} is now an admin ⚙️`:`${name} is now a contestant`);
+  renderAdminUsers();
 }
 async function approveUser(id){
   const sb=getSupabase();
@@ -2777,7 +2958,14 @@ function renderAdminQuizzes(){
             <option value="slider">🎚️ Slider</option>
             <option value="puzzle">🧩 Puzzle (Order the items)</option>
           </select>
-          <input type="text" id="nq-image" placeholder="Image URL (optional)..."/>
+          <button type="button" onclick="openMediaPicker()" style="background:#fff;border:1px solid var(--border);border-radius:10px;padding:8px;cursor:pointer;font-weight:600;font-size:13px;color:var(--primary);display:flex;align-items:center;justify-content:center;gap:6px">
+            🖼️ <span id="nq-image-btn-label">Add image (optional)</span>
+          </button>
+        </div>
+        <input type="hidden" id="nq-image"/>
+        <div id="nq-image-preview" style="display:none;margin-bottom:8px;position:relative">
+          <img id="nq-image-preview-img" src="" style="max-height:90px;border-radius:8px;display:block"/>
+          <button type="button" onclick="clearNQImage()" style="position:absolute;top:4px;left:4px;background:rgba(0,0,0,.6);color:#fff;border:none;border-radius:50%;width:22px;height:22px;cursor:pointer;font-size:13px">×</button>
         </div>
         <input type="text" id="nq-qtext" placeholder="Question text..." style="margin-bottom:8px"/>
 
@@ -2836,6 +3024,89 @@ function renderAdminQuizzes(){
       </div>`).join('')}`;
   window._nqQuestions=[];
 }
+// =====================================================================
+//  QUESTION IMAGE PICKER (upload / search online / paste URL)
+// =====================================================================
+function openMediaPicker(){
+  document.getElementById('media-picker-modal').style.display='flex';
+  mpSwitchTab('upload');
+}
+function closeMediaPicker(){
+  document.getElementById('media-picker-modal').style.display='none';
+}
+function mpSwitchTab(tab){
+  ['upload','search','url'].forEach(t=>{
+    document.getElementById('mp-pane-'+t).style.display=(t===tab)?'block':'none';
+    const btn=document.querySelector(`.mp-tab[data-tab="${t}"]`);
+    if(btn){
+      btn.style.borderBottomColor=(t===tab)?'var(--primary)':'transparent';
+      btn.style.color=(t===tab)?'var(--primary)':'var(--muted)';
+    }
+  });
+  if(tab==='search'&&UNSPLASH_ACCESS_KEY==='YOUR_UNSPLASH_ACCESS_KEY'){
+    document.getElementById('mp-search-results').innerHTML=`<div style="grid-column:1/-1;text-align:center;color:var(--muted);font-size:12px;padding:20px">
+      Online search isn't set up yet — add a free Unsplash API key (UNSPLASH_ACCESS_KEY near the top of index.html) to enable it. You can still Upload or Paste URL.
+    </div>`;
+  }
+}
+function setNQImage(url){
+  document.getElementById('nq-image').value=url;
+  document.getElementById('nq-image-preview').style.display='block';
+  document.getElementById('nq-image-preview-img').src=url;
+  document.getElementById('nq-image-btn-label').textContent='Change image';
+  closeMediaPicker();
+}
+function clearNQImage(){
+  document.getElementById('nq-image').value='';
+  document.getElementById('nq-image-preview').style.display='none';
+  document.getElementById('nq-image-btn-label').textContent='Add image (optional)';
+}
+async function mpUploadFile(file){
+  if(!file)return;
+  const sb=getSupabase();
+  const statusEl=document.getElementById('mp-upload-status');
+  if(!sb){ if(statusEl)statusEl.textContent='Not connected to the database — can\'t upload right now.'; return; }
+  if(file.size>5*1024*1024){ if(statusEl)statusEl.textContent='File is too large (5MB max).'; return; }
+  if(statusEl)statusEl.textContent='Uploading...';
+  try{
+    const ext=(file.name.split('.').pop()||'jpg').toLowerCase();
+    const path=`${currentUser.supabaseId||'anon'}/${Date.now()}.${ext}`;
+    const {error}=await sb.storage.from('quiz-images').upload(path,file,{upsert:false});
+    if(error){
+      if(statusEl)statusEl.textContent='Upload failed: '+error.message+' (has fix-lmttw-storage-bucket.sql been run?)';
+      return;
+    }
+    const {data:pub}=sb.storage.from('quiz-images').getPublicUrl(path);
+    if(statusEl)statusEl.textContent='';
+    setNQImage(pub.publicUrl);
+  }catch(e){
+    if(statusEl)statusEl.textContent='Upload failed: '+e.message;
+  }
+}
+async function mpDoSearch(){
+  const q=document.getElementById('mp-search-input').value.trim();
+  const resultsEl=document.getElementById('mp-search-results');
+  if(!q)return;
+  if(UNSPLASH_ACCESS_KEY==='YOUR_UNSPLASH_ACCESS_KEY')return; // instructions already shown
+  resultsEl.innerHTML='<div style="grid-column:1/-1;text-align:center;color:var(--muted);font-size:12px;padding:20px">Searching...</div>';
+  try{
+    const res=await fetch(`https://api.unsplash.com/search/photos?query=${encodeURIComponent(q)}&per_page=12&client_id=${UNSPLASH_ACCESS_KEY}`);
+    const data=await res.json();
+    const results=data.results||[];
+    if(results.length===0){resultsEl.innerHTML='<div style="grid-column:1/-1;text-align:center;color:var(--muted);font-size:12px;padding:20px">No results — try another search.</div>';return;}
+    resultsEl.innerHTML=results.map(r=>`
+      <img src="${r.urls.thumb}" onclick="setNQImage('${r.urls.regular}')" style="width:100%;height:80px;object-fit:cover;border-radius:8px;cursor:pointer;border:2px solid transparent" onmouseover="this.style.borderColor='var(--primary)'" onmouseout="this.style.borderColor='transparent'"/>
+    `).join('');
+  }catch(e){
+    resultsEl.innerHTML='<div style="grid-column:1/-1;text-align:center;color:var(--danger);font-size:12px;padding:20px">Search failed. Check your connection or API key.</div>';
+  }
+}
+function mpUseUrl(){
+  const url=document.getElementById('mp-url-input').value.trim();
+  if(!url)return;
+  setNQImage(url);
+  document.getElementById('mp-url-input').value='';
+}
 function nqTypeChanged(){
   const type=document.getElementById('nq-qtype').value;
   ['mcq','truefalse','type_answer','slider','puzzle'].forEach(t=>{
@@ -2880,7 +3151,7 @@ function addNQQuestion(){
   window._nqQuestions.push(q);
   document.getElementById('nq-qlist').innerHTML=`<strong>${window._nqQuestions.length} question(s):</strong><br>`+window._nqQuestions.map((qq,i)=>`• Q${i+1} [${qq.type}]: ${qq.text}`).join('<br>');
   document.getElementById('nq-qtext').value='';
-  document.getElementById('nq-image').value='';
+  clearNQImage();
   [0,1,2,3].forEach(i=>{const el=document.getElementById('nq-opt'+i);if(el)el.value='';});
   const accEl=document.getElementById('nq-accepted');if(accEl)accEl.value='';
   const puzEl=document.getElementById('nq-puzzle-items');if(puzEl)puzEl.value='';
