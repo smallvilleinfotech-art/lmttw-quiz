@@ -163,6 +163,13 @@ html,body{overflow-x:hidden;max-width:100vw}
 </audio>
 <div class="notif" id="notif"></div>
 
+<!-- Global Home button — visible on every screen (dashboards, quiz builder,
+     live host screens, and even mid-quiz) except the landing/boot screens,
+     where there's nothing to "go home" from. goHome() decides what leaving
+     the current screen actually means (confirm before forfeiting a quiz
+     attempt, etc). -->
+<button id="global-home-btn" onclick="goHome()" title="Home" style="display:none;position:fixed;top:12px;left:12px;z-index:999;width:42px;height:42px;border-radius:50%;border:none;background:rgba(0,0,0,.45);backdrop-filter:blur(6px);color:#fff;font-size:19px;cursor:pointer;align-items:center;justify-content:center;box-shadow:0 3px 10px rgba(0,0,0,.3)">🏠</button>
+
 <!-- ==================== BOOT / LOADING SCREEN ====================
      Shown by default so a refresh never flashes the login page before
      the session check finishes — bootApp() swaps this out for whatever
@@ -310,7 +317,7 @@ html,body{overflow-x:hidden;max-width:100vw}
       <div id="q-qnum" style="font-size:13px;color:rgba(255,255,255,.65);margin-bottom:8px;letter-spacing:1px;text-transform:uppercase">Question 1 of 5</div>
       <div id="q-qtext" style="font-size:clamp(22px,4.5vw,36px);font-weight:800;line-height:1.3">Question text</div>
       <div id="q-qimage-wrap" style="display:none;margin-top:16px">
-        <img id="q-qimage" src="" alt="" style="max-width:100%;max-height:min(38vh,340px);border-radius:14px;object-fit:contain;box-shadow:0 8px 24px rgba(0,0,0,.3)"/>
+        <img id="q-qimage" src="" alt="" onerror="this.closest('#q-qimage-wrap').style.display='none'" style="max-width:100%;max-height:min(38vh,340px);border-radius:14px;object-fit:contain;box-shadow:0 8px 24px rgba(0,0,0,.3)"/>
       </div>
       <div id="q-pts" style="font-size:13px;color:#F9A825;margin-top:8px">⚡ Up to 1000 points</div>
     </div>
@@ -421,6 +428,7 @@ html,body{overflow-x:hidden;max-width:100vw}
 
     <div id="mp-pane-url" style="display:none">
       <input type="text" id="mp-url-input" placeholder="https://example.com/image.jpg"/>
+      <div style="font-size:11px;color:var(--muted);margin-top:6px">Must be a direct link to the image file itself (usually ending in .jpg/.png/.webp) — not a webpage that merely shows the image, like a Google Images results link.</div>
       <button class="gbtn" onclick="mpUseUrl()" style="margin-top:10px;padding:9px 16px;font-size:13px;background:var(--primary);width:100%">Use this URL</button>
     </div>
   </div>
@@ -565,7 +573,7 @@ html,body{overflow-x:hidden;max-width:100vw}
           <div style="font-size:12px;color:rgba(255,255,255,.5);text-transform:uppercase;letter-spacing:2px">Question <span id="lh-qnum">1</span> of <span id="lh-qtotal">5</span></div>
           <div id="lh-qtext" style="font-size:clamp(16px,2.4vw,22px);font-weight:700;color:#fff;margin-top:4px"></div>
           <div id="lh-qimage-wrap" style="display:none;margin-top:10px">
-            <img id="lh-qimage" src="" alt="" style="max-width:100%;max-height:180px;border-radius:10px;object-fit:contain"/>
+            <img id="lh-qimage" src="" alt="" onerror="this.closest('#lh-qimage-wrap').style.display='none'" style="max-width:100%;max-height:180px;border-radius:10px;object-fit:contain"/>
           </div>
         </div>
         <div style="text-align:center">
@@ -1096,6 +1104,8 @@ function goTo(id){
   if(id==='s-quizdone')el.style.display='block';
   if(id==='s-livehost')el.style.display='block';
   if(id==='s-quiz'||id==='s-podium')el.style.display='flex';
+  const homeBtn=document.getElementById('global-home-btn');
+  if(homeBtn)homeBtn.style.display=(id==='s-landing'||id==='s-boot')?'none':'flex';
 }
 async function cTab(id,btn){
   ['c-overview','c-joinlive','c-quizzes','c-leaderboard','c-reports','c-profile'].forEach(t=>{
@@ -1208,7 +1218,10 @@ async function loadAllData(){
     const myScores = scoreList
       .filter(s=>s.user_id===p.id)
       .map(s=>({id:s.id,quiz:s.quiz_name||'Unknown',quizId:s.quiz_id,score:s.score||0,date:(s.played_at||'').split('T')[0],mode:s.mode||'live',breakdown:s.breakdown||null}));
-    const totalScore = p.total_score || myScores.reduce((acc,s)=>acc+s.score,0);
+    // Always computed live from actual score rows — profiles.total_score
+    // was a cache column kept in sync via a racy client-side read-then-write
+    // that could silently under- or over-count; it's no longer written to.
+    const totalScore = myScores.reduce((acc,s)=>acc+s.score,0);
     return {
       id: p.id,
       supabaseId: p.id,
@@ -1932,10 +1945,13 @@ async function reportAnswerToHost(optIdx){
     });
     // The host's live answer-distribution bars are computed purely from
     // last_answer/last_question_index on each player's live_players row
-    // (see checkAllAnsweredAndAdvance). Whatever submit_live_answer does or
-    // doesn't do with those two columns, set them explicitly here so the
-    // bars always update — this is what was silently keeping every bar at 0.
-    sb.from('live_players').update({last_answer:optIdx,last_question_index:quizState?quizState.currentQ:0}).eq('session_id',myPlayerSession.sessionId).eq('auth_uid',myPlayerSession.authUid).then(()=>{}).catch(()=>{});
+    // (see checkAllAnsweredAndAdvance). A previous attempt at this used a
+    // plain client-side .update() call, which silently failed with no RLS
+    // policy allowing it (errors were swallowed) — that's why the bars
+    // never actually updated despite that fix. mark_live_answer is a
+    // SECURITY DEFINER function, so it doesn't depend on any client-side
+    // UPDATE policy existing on live_players at all.
+    sb.rpc('mark_live_answer',{p_session_id:myPlayerSession.sessionId,p_question_index:quizState?quizState.currentQ:0,p_chosen_option:optIdx}).then(({error:markErr})=>{if(markErr)console.warn('mark_live_answer failed',markErr);});
     if(!error&&data&&quizState&&quizState.results.length){
       const lastResult=quizState.results[quizState.results.length-1];
       const diff=(data.awarded||0)-lastResult.earned;
@@ -2397,6 +2413,46 @@ function renderQuizQuestion(){
   document.getElementById('s-quiz').style.background=bgs[quizState.currentQ%bgs.length];
   sfxCountdownStart();
 }
+// Global Home button handler — behaves differently depending on what's
+// actually happening right now, so it never silently discards a game in
+// progress without asking first.
+function goHome(){
+  // Hosting a live game — your device drives the question timer, so
+  // leaving pauses the game for everyone until you come back (the session
+  // itself isn't ended; restoreHostLiveGame() picks it back up on return).
+  if(currentUser&&currentUser.role==='admin'&&liveGame.sessionId&&liveGame.phase&&liveGame.phase!=='done'){
+    if(!confirm('Leave hosting? The live game will pause for all players since your device controls the timer. You can come back and resume before ending it.'))return;
+    clearInterval(liveGame.hostTimer);
+    goTo('s-admin');renderAdminDashboard();
+    return;
+  }
+  const quizIsOver=document.getElementById('s-quizdone').classList.contains('active');
+  // Currently a participant in a live game (lobby, mid-question, or podium)
+  if(!quizIsOver&&myPlayerSession&&myPlayerSession.sessionId){
+    if(!confirm("Leave the live game? If it's still running, you can rejoin with the same PIN."))return;
+    clearPersistedSession();
+    stopLobbyMusic();stopQuizMusic();clearInterval(timerInterval);
+    quizState=null;
+    myPlayerSession.sessionId=null;
+    goToPostLiveHome();
+    return;
+  }
+  // Mid solo quiz
+  if(!quizIsOver&&quizState&&!quizState.isLive&&quizState.phase==='question'){
+    if(!confirm("Leave this quiz? Your progress on this attempt will be lost (it won't be saved)."))return;
+    clearInterval(timerInterval);
+    stopQuizMusic();
+    quizState=null;
+    goToPostLiveHome();
+    return;
+  }
+  goToPostLiveHome();
+}
+function goToPostLiveHome(){
+  if(currentUser&&currentUser.role==='admin'){goTo('s-admin');renderAdminDashboard();}
+  else if(currentUser){goTo('s-contestant');renderContestantOverview();}
+  else{goTo('s-landing');}
+}
 // Lets a SOLO player stop their own quiz early (never affects a live game —
 // that's the host's call via hostEndQuizNow). Whatever's been answered so
 // far is saved as their final result for this attempt.
@@ -2446,11 +2502,28 @@ function startTimer(){
 async function reportNonMcqAnswerToHost(isCorrect,earned){
   const sb=getSupabase();
   if(sb&&myPlayerSession.sessionId){
-    const {data:me}=await sb.from('live_players').select('score').eq('session_id',myPlayerSession.sessionId).eq('auth_uid',myPlayerSession.authUid).maybeSingle();
-    const newScore=(me?.score||0)+earned;
-    await sb.from('live_players').update({score:newScore,last_answer:isCorrect?1:0,last_question_index:quizState?quizState.currentQ:0}).eq('session_id',myPlayerSession.sessionId).eq('auth_uid',myPlayerSession.authUid);
-    myPlayerSession.score=newScore;
-    if(quizState)quizState.score=newScore;
+    // Previously this did a client-side read-then-write (select score, add
+    // earned, update) — that's a classic race condition: if another answer
+    // (or the mcq RPC path) updated the score in between the read and the
+    // write, this write would overwrite it and the earlier points would
+    // vanish. That's almost certainly what "scored points being omitted"
+    // was. submit_nonmcq_answer does the increment atomically in one SQL
+    // statement server-side, so there's no window for a lost update.
+    const {data,error}=await sb.rpc('submit_nonmcq_answer',{
+      p_session_id:myPlayerSession.sessionId,
+      p_question_index:quizState?quizState.currentQ:0,
+      p_is_correct:isCorrect,
+      p_earned:earned
+    });
+    if(error){
+      console.warn('submit_nonmcq_answer failed',error);
+    } else if(data){
+      const newScore=Array.isArray(data)?(data[0]?.new_score??data[0]):((data.new_score)??data);
+      if(typeof newScore==='number'){
+        myPlayerSession.score=newScore;
+        if(quizState)quizState.score=newScore;
+      }
+    }
     if(isCorrect){myPlayerSession.streak=(myPlayerSession.streak||0)+1;sfxCorrect();} else {myPlayerSession.streak=0;sfxWrong();}
     const {data:players}=await sb.from('live_players').select('nickname,score,auth_uid').eq('session_id',myPlayerSession.sessionId).order('score',{ascending:false});
     if(players){
@@ -2662,8 +2735,16 @@ async function finishQuiz(){
   quizState.finished=true;
   clearInterval(timerInterval);
   stopQuizMusic();
-  const finalScore=quizState.score;
+  let finalScore=quizState.score;
   const sb=getSupabase();
+  if(sb&&quizState.isLive&&myPlayerSession.sessionId){
+    // The server (via submit_live_answer / submit_nonmcq_answer) is the
+    // source of truth for a live game's score, not whatever the client
+    // accumulated locally through the round — fetch it fresh right before
+    // saving so what gets recorded always matches what's actually in the DB.
+    const {data:me}=await sb.from('live_players').select('score').eq('session_id',myPlayerSession.sessionId).eq('auth_uid',myPlayerSession.authUid).maybeSingle();
+    if(me&&typeof me.score==='number')finalScore=me.score;
+  }
   if(sb&&currentUser.supabaseId){
     // Save this result for BOTH solo and live games so it shows up in the
     // player's history and the admin/host leaderboards afterwards. `mode`
@@ -2678,9 +2759,14 @@ async function finishQuiz(){
       breakdown:quizState.results
     }]);
     if(!saveErr){
-      const newTotal=(currentUser.total_score||0)+finalScore;
-      await sb.from('profiles').update({total_score:newTotal}).eq('id',currentUser.supabaseId);
-      currentUser.total_score=newTotal;
+      // NOTE: profiles.total_score used to be kept in sync here via a
+      // client-side read-then-write (currentUser.total_score + finalScore),
+      // which is exactly the kind of race condition that silently loses
+      // points — if currentUser.total_score was even slightly stale (e.g.
+      // another tab/device had just played), this write would overwrite
+      // the real total with a smaller one. Every screen that shows a total
+      // now computes it live from the scores table instead (see
+      // loadAllData()), so this column is no longer written to at all.
     } else if(saveErr.code!=='23505'){
       // 23505 = duplicate key, meaning this exact live game was already
       // saved (safe to ignore). Anything else is a real failure worth logging.
@@ -2964,7 +3050,7 @@ function renderAdminQuizzes(){
         </div>
         <input type="hidden" id="nq-image"/>
         <div id="nq-image-preview" style="display:none;margin-bottom:8px;position:relative">
-          <img id="nq-image-preview-img" src="" style="max-height:90px;border-radius:8px;display:block"/>
+          <img id="nq-image-preview-img" src="" onerror="this.src='';this.alt='⚠️ Image failed to load — try re-uploading or a direct image URL';this.style.cssText='font-size:11px;color:#c62828;display:block;padding:8px'" style="max-height:90px;border-radius:8px;display:block"/>
           <button type="button" onclick="clearNQImage()" style="position:absolute;top:4px;left:4px;background:rgba(0,0,0,.6);color:#fff;border:none;border-radius:50%;width:22px;height:22px;cursor:pointer;font-size:13px">×</button>
         </div>
         <input type="text" id="nq-qtext" placeholder="Question text..." style="margin-bottom:8px"/>
@@ -3067,11 +3153,22 @@ async function mpUploadFile(file){
   const statusEl=document.getElementById('mp-upload-status');
   if(!sb){ if(statusEl)statusEl.textContent='Not connected to the database — can\'t upload right now.'; return; }
   if(file.size>5*1024*1024){ if(statusEl)statusEl.textContent='File is too large (5MB max).'; return; }
-  if(statusEl)statusEl.textContent='Uploading...';
+  // Some phone photos (especially iPhone HEIC-originals shared as a
+  // generic/no-extension file) report an unreliable filename extension
+  // while the browser's own File.type is usually accurate — prefer that,
+  // and always pass an explicit contentType on upload. Previously this
+  // just guessed the extension from the filename and let Supabase infer
+  // content-type on its own, which is what caused some uploaded images to
+  // render as a generic broken-file icon instead of the actual picture.
+  const mimeToExt={'image/jpeg':'jpg','image/png':'png','image/webp':'webp','image/gif':'gif'};
+  const contentType=file.type&&mimeToExt[file.type]?file.type:'image/jpeg';
+  const ext=mimeToExt[contentType]||(file.name.split('.').pop()||'jpg').toLowerCase();
+  if(!file.type||!mimeToExt[file.type]){
+    if(statusEl)statusEl.textContent="This file's format could not be confirmed as PNG/JPEG/WEBP/GIF — if it doesn't render after uploading, try converting it to JPEG first.";
+  } else if(statusEl){statusEl.textContent='Uploading...';}
   try{
-    const ext=(file.name.split('.').pop()||'jpg').toLowerCase();
     const path=`${currentUser.supabaseId||'anon'}/${Date.now()}.${ext}`;
-    const {error}=await sb.storage.from('quiz-images').upload(path,file,{upsert:false});
+    const {error}=await sb.storage.from('quiz-images').upload(path,file,{upsert:false,contentType});
     if(error){
       if(statusEl)statusEl.textContent='Upload failed: '+error.message+' (has fix-lmttw-storage-bucket.sql been run?)';
       return;
