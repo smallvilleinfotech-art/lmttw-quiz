@@ -762,6 +762,7 @@ async function restoreHostLiveGame(persisted){
     document.getElementById('lh-postboard').style.display='none';
     renderHostQuestion();
     startQuizMusic();
+    liveGame.questionStartedAt=session.question_started_at?new Date(session.question_started_at).getTime():Date.now();
     const elapsed=session.question_started_at?Math.floor((Date.now()-new Date(session.question_started_at).getTime())/1000):0;
     const remaining=Math.max(0,q0.time-elapsed);
     checkAllAnsweredAndAdvance(session.id);
@@ -1090,6 +1091,22 @@ let myPlayerSession = {
 // =====================================================================
 //  UTILS
 // =====================================================================
+// Turns a raw Supabase/JS error into something a non-technical user can
+// actually act on. "TypeError: Failed to fetch" (and friends) almost always
+// just means there's no internet connection right now — showing the raw
+// technical message instead was confusing and looked broken.
+function friendlyErrorMsg(error){
+  if(!error)return 'Something went wrong. Please try again.';
+  const raw=(error.message||String(error)||'');
+  const looksLikeNetworkFailure=
+    !navigator.onLine ||
+    /failed to fetch/i.test(raw) ||
+    /networkerror/i.test(raw) ||
+    /load failed/i.test(raw) ||
+    /network request failed/i.test(raw);
+  if(looksLikeNetworkFailure)return 'Check your internet connection.';
+  return raw||'Something went wrong. Please try again.';
+}
 function notify(msg,type="success"){
   const el=document.getElementById('notif');
   el.textContent=msg;
@@ -1329,7 +1346,7 @@ function doRegister(){
     email,password:pass,
     options:{data:{name,phone,bank_name:bname,bank_institution:bank,bank_account:acct}}
   }).then(({data,error})=>{
-    if(error){notify(error.message,'error');return;}
+    if(error){notify(friendlyErrorMsg(error),'error');return;}
     notify('Registration successful! Awaiting admin approval 🎉');
     goTo('s-landing');
   });
@@ -1374,7 +1391,7 @@ function joinByPinFromContestant(){
         nickname:currentUser.name,score:0
       }]).then(({error:joinErr})=>{
         resetBtn();
-        if(joinErr){notify('Could not join game: '+joinErr.message,'error');return;}
+        if(joinErr){notify('Could not join game: '+friendlyErrorMsg(joinErr),'error');return;}
         persistMyPlayerSession();
         enterLobby();
         subscribeToGameAsPlayer(data.id);
@@ -1418,7 +1435,7 @@ function confirmJoin(){
   const sb=getSupabase();
   if(sb){
     sb.auth.signInAnonymously().then(({data:authData,error:authErr})=>{
-      if(authErr){resetBtn();notify('Could not join game: '+authErr.message,'error');return;}
+      if(authErr){resetBtn();notify('Could not join game: '+friendlyErrorMsg(authErr),'error');return;}
       myPlayerSession.authUid=authData.user.id;
       sb.from('live_sessions').select('id').eq('pin',myPlayerSession.pin).eq('phase','lobby').single().then(({data})=>{
         if(!data){resetBtn();return notify('Game no longer accepting players','error');}
@@ -1564,7 +1581,7 @@ async function hostCreateSession(quizId){
       pin,quiz_id:quizId,phase:'lobby',current_question:0,
       host_id:currentUser.supabaseId||currentUser.id
     }]).select().single();
-    if(error){notify('DB error: '+error.message,'error');return;}
+    if(error){notify(friendlyErrorMsg(error),'error');return;}
     liveGame.sessionId=data.id;
     subscribeToSessionAsHost(data.id);
     persistHostSession();
@@ -1611,6 +1628,7 @@ async function hostStartGame(){
   }
   liveGame.phase='question';
   liveGame.currentQ=0;
+  liveGame.questionStartedAt=Date.now();
   const q0=getActiveQuestion();
   const q0Opts=q0&&Array.isArray(q0.options)?q0.options.length:4;
   liveGame.answerCounts=new Array(q0Opts).fill(0);
@@ -1760,6 +1778,7 @@ async function hostNextQuestion(){
   if(next===qList.length-1)showKahootComment(pick(KAHOOT_COMMENTS.lastQ));
   liveGame.currentQ=next;
   liveGame.phase='question';
+  liveGame.questionStartedAt=Date.now();
   const sb=getSupabase();
   if(sb)await sb.from('live_sessions').update({phase:'question',current_question:next,question_started_at:new Date().toISOString()}).eq('id',liveGame.sessionId);
   goTo('s-livehost');
@@ -1866,6 +1885,13 @@ async function checkAllAnsweredAndAdvance(sessionId){
   liveGame.answerCounts=Array.from({length:numOpts},(_,i)=>counts[i]||0);
   liveGame.totalAnswered=answered;
   updateHostAnswerBars();
+  // Safety rail: never auto-advance within the first few seconds of a
+  // question, no matter what the answered-count says. This is what
+  // actually stops a question from ever flashing past before anyone can
+  // genuinely answer it, regardless of what specific timing/data condition
+  // might otherwise cause a false "everyone's answered" reading.
+  const questionAgeMs=Date.now()-(liveGame.questionStartedAt||0);
+  if(questionAgeMs<4000)return;
   if(total>0&&answered>=total){
     // Everyone has answered — auto-advance to podium, just like Kahoot
     clearInterval(liveGame.hostTimer);
@@ -2416,24 +2442,35 @@ function renderQuizQuestion(){
 // Global Home button handler — behaves differently depending on what's
 // actually happening right now, so it never silently discards a game in
 // progress without asking first.
-function goHome(){
-  // Hosting a live game — your device drives the question timer, so
-  // leaving pauses the game for everyone until you come back (the session
-  // itself isn't ended; restoreHostLiveGame() picks it back up on return).
+async function goHome(){
+  // Hosting a live game — Home now TERMINATES it outright, same as the End
+  // Quiz button, rather than just leaving it paused waiting for you to come
+  // back. There's no server-side driver for the question timer, so a
+  // "paused" game would otherwise leave every other player stuck forever.
   if(currentUser&&currentUser.role==='admin'&&liveGame.sessionId&&liveGame.phase&&liveGame.phase!=='done'){
-    if(!confirm('Leave hosting? The live game will pause for all players since your device controls the timer. You can come back and resume before ending it.'))return;
+    if(!confirm('End this live game and go home? Every player will be taken straight to final results based on scores so far.'))return;
     clearInterval(liveGame.hostTimer);
+    stopLobbyMusic();stopQuizMusic();
+    const sb=getSupabase();
+    if(sb)await sb.from('live_sessions').update({phase:'done',ended_at:new Date().toISOString()}).eq('id',liveGame.sessionId);
+    clearPersistedHostSession();
+    liveGame.phase='done';
+    liveGame.sessionId=null;
     goTo('s-admin');renderAdminDashboard();
     return;
   }
   const quizIsOver=document.getElementById('s-quizdone').classList.contains('active');
   // Currently a participant in a live game (lobby, mid-question, or podium)
+  // — Home fully exits this attempt; it does not quietly keep it alive in
+  // the background for a later resume.
   if(!quizIsOver&&myPlayerSession&&myPlayerSession.sessionId){
-    if(!confirm("Leave the live game? If it's still running, you can rejoin with the same PIN."))return;
+    if(!confirm("Leave the live game for good? You won't automatically rejoin — you'd need to re-enter the PIN from scratch."))return;
     clearPersistedSession();
     stopLobbyMusic();stopQuizMusic();clearInterval(timerInterval);
+    if(_playerRealtimeChannel){try{getSupabase()?.removeChannel(_playerRealtimeChannel);}catch(e){}_playerRealtimeChannel=null;}
     quizState=null;
     myPlayerSession.sessionId=null;
+    myPlayerSession.pin=null;
     goToPostLiveHome();
     return;
   }
@@ -2960,7 +2997,7 @@ async function setUserRole(id,newRole,name){
   const sb=getSupabase();
   if(sb){
     const {error}=await sb.from('profiles').update({role:newRole}).eq('id',id);
-    if(error){notify('Error updating role: '+error.message,'error');return;}
+    if(error){notify('Error updating role: '+friendlyErrorMsg(error),'error');return;}
     await loadAllData();
   } else {
     const u=users.find(x=>x.id===id);
@@ -3170,14 +3207,14 @@ async function mpUploadFile(file){
     const path=`${currentUser.supabaseId||'anon'}/${Date.now()}.${ext}`;
     const {error}=await sb.storage.from('quiz-images').upload(path,file,{upsert:false,contentType});
     if(error){
-      if(statusEl)statusEl.textContent='Upload failed: '+error.message+' (has fix-lmttw-storage-bucket.sql been run?)';
+      if(statusEl)statusEl.textContent='Upload failed: '+friendlyErrorMsg(error)+(navigator.onLine?' (has fix-lmttw-storage-bucket.sql been run?)':'');
       return;
     }
     const {data:pub}=sb.storage.from('quiz-images').getPublicUrl(path);
     if(statusEl)statusEl.textContent='';
     setNQImage(pub.publicUrl);
   }catch(e){
-    if(statusEl)statusEl.textContent='Upload failed: '+e.message;
+    if(statusEl)statusEl.textContent='Upload failed: '+friendlyErrorMsg(e);
   }
 }
 async function mpDoSearch(){
@@ -3263,7 +3300,7 @@ async function publishQuiz(){
   const sb=getSupabase();
   if(sb){
     const {error}=await sb.from('quizzes').insert([{name,type,questions:window._nqQuestions,host_id:currentUser.supabaseId,status:'live',created_at:new Date().toISOString()}]);
-    if(error){notify('Error saving quiz: '+error.message,'error');return;}
+    if(error){notify('Error saving quiz: '+friendlyErrorMsg(error),'error');return;}
     await loadAllData();
   }
   notify('Quiz published! 🎉');
