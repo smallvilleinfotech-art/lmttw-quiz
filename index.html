@@ -1636,7 +1636,6 @@ async function hostStartGame(){
   const sb=getSupabase();
   if(sb){
     await sb.from('live_sessions').update({phase:'question',current_question:0,question_started_at:new Date().toISOString()}).eq('id',liveGame.sessionId);
-    broadcastPhase({phase:'question',current_question:0,question_started_at:new Date().toISOString()});
   }
   document.getElementById('lh-lobby').style.display='none';
   document.getElementById('lh-active').style.display='flex';
@@ -1736,7 +1735,6 @@ async function hostRevealAnswers(){
   let players=[];
   if(sb){
     await sb.from('live_sessions').update({phase:'podium'}).eq('id',liveGame.sessionId);
-    broadcastPhase({phase:'podium',current_question:liveGame.currentQ});
     const {data}=await sb.from('live_players').select('nickname,score,auth_uid').eq('session_id',liveGame.sessionId).order('score',{ascending:false});
     players=data||[];
     renderPodiumScreen(players,liveGame.currentQ,true);
@@ -1769,7 +1767,6 @@ async function hostNextQuestion(){
     sfxFanfare();
     const sb=getSupabase();
     if(sb)await sb.from('live_sessions').update({phase:'done',ended_at:new Date().toISOString()}).eq('id',liveGame.sessionId);
-    broadcastPhase({phase:'done'});
     clearPersistedHostSession();
     goTo('s-livehost');
     document.getElementById('lh-active').style.display='none';
@@ -1784,7 +1781,6 @@ async function hostNextQuestion(){
   liveGame.questionStartedAt=Date.now();
   const sb=getSupabase();
   if(sb)await sb.from('live_sessions').update({phase:'question',current_question:next,question_started_at:new Date().toISOString()}).eq('id',liveGame.sessionId);
-  broadcastPhase({phase:'question',current_question:next,question_started_at:new Date().toISOString()});
   goTo('s-livehost');
   document.getElementById('lh-active').style.display='flex';
   document.getElementById('lh-lobby').style.display='none';
@@ -1805,7 +1801,6 @@ async function hostEndQuizNow(){
   sfxFanfare();
   const sb=getSupabase();
   if(sb)await sb.from('live_sessions').update({phase:'done',ended_at:new Date().toISOString()}).eq('id',liveGame.sessionId);
-  broadcastPhase({phase:'done'});
   clearPersistedHostSession();
   goTo('s-livehost');
   document.getElementById('lh-active').style.display='none';
@@ -1836,7 +1831,6 @@ async function endLiveGame(){
   const sb=getSupabase();
   if(sb){
     await sb.from('live_sessions').update({phase:'done',ended_at:new Date().toISOString()}).eq('id',liveGame.sessionId);
-    broadcastPhase({phase:'done'});
     if(liveGame.realtimeSub)sb.removeChannel(liveGame.realtimeSub);
     await loadAllData(); // Refresh so admin leaderboard shows updated scores
   }
@@ -1851,23 +1845,9 @@ async function endLiveGame(){
 // =====================================================================
 //  SUPABASE REALTIME SUBSCRIPTIONS
 // =====================================================================
-function broadcastPhase(payload){
-  // Fires alongside (never instead of) the live_sessions DB write. Players
-  // get this in ~tens of ms over the open socket; the DB write remains the
-  // source of truth for anyone who reconnects or missed the broadcast, via
-  // the existing postgres_changes listener as a fallback.
-  if(liveGame.realtimeSub){
-    try{ liveGame.realtimeSub.send({type:'broadcast',event:'phase',payload}); }catch(e){}
-  }
-}
 function subscribeToSessionAsHost(sessionId){
   const sb=getSupabase();if(!sb)return;
-  // NOTE: host and players now join the SAME channel topic ('game-'+sessionId)
-  // instead of separate 'host-x' / 'player-x' topics. This is required so the
-  // host can broadcast() instant messages that every player's own channel
-  // subscription will receive — postgres_changes still works exactly as
-  // before regardless of topic name, so nothing existing is affected.
-  liveGame.realtimeSub=sb.channel('game-'+sessionId)
+  liveGame.realtimeSub=sb.channel('host-'+sessionId)
     .on('postgres_changes',{event:'INSERT',schema:'public',table:'live_players',filter:`session_id=eq.${sessionId}`},(payload)=>{
       const p=payload.new;
       liveGame.players[p.player_id]={name:p.nickname,score:p.score||0,answers:[]};
@@ -1927,15 +1907,6 @@ async function checkAllAnsweredAndAdvance(sessionId){
   liveGame.answerCounts=Array.from({length:numOpts},(_,i)=>counts[i]||0);
   liveGame.totalAnswered=answered;
   updateHostAnswerBars();
-  // Push the freshly computed stats straight to every player over the
-  // already-open realtime channel. This is a broadcast message, not a
-  // postgres_changes event, so it arrives in ~tens of ms instead of
-  // waiting on WAL replication, and no player has to hit the database to
-  // get it — that removes the old "every player re-queries live_players on
-  // every other player's answer" fan-out entirely.
-  if(liveGame.realtimeSub){
-    liveGame.realtimeSub.send({type:'broadcast',event:'stats',payload:{currentQ:liveGame.currentQ,answered,total,counts:liveGame.answerCounts}});
-  }
   // Safety rail: never auto-advance within the first few seconds of a
   // question, no matter what the answered-count says. This is what
   // actually stops a question from ever flashing past before anyone can
@@ -1983,16 +1954,6 @@ function applyLiveSessionUpdate(s){
     finishQuiz();
   }
 }
-function applyStatsBroadcast(payload){
-  // Instant, DB-free update of the "x / total answered" waiting view, fed
-  // straight from the host's broadcast instead of each player querying
-  // live_players themselves.
-  if(!payload||payload.currentQ!==myPlayerSession.currentQ)return;
-  const el=document.getElementById('lq-waiting-count');
-  if(el&&typeof payload.answered==='number'&&typeof payload.total==='number'){
-    el.textContent=`${payload.answered} / ${payload.total} answered`;
-  }
-}
 function subscribeToGameAsPlayer(sessionId){
   const sb=getSupabase();if(!sb)return;
   // Avoid stacking duplicate subscriptions if this is called more than once
@@ -2000,13 +1961,7 @@ function subscribeToGameAsPlayer(sessionId){
   // silently swallow later realtime events, which is what makes the podium
   // intermittently fail to appear on a player's screen.
   if(_playerRealtimeChannel){ try{ sb.removeChannel(_playerRealtimeChannel); }catch(e){} _playerRealtimeChannel=null; }
-  // Same topic name as the host's channel ('game-'+sessionId) so this
-  // player can receive the host's broadcast() messages. This is required
-  // for broadcast to work — postgres_changes subscriptions below are
-  // completely unaffected by the topic name and behave exactly as before.
-  _playerRealtimeChannel=sb.channel('game-'+sessionId)
-    .on('broadcast',{event:'phase'},({payload})=>applyLiveSessionUpdate(payload))
-    .on('broadcast',{event:'stats'},({payload})=>applyStatsBroadcast(payload))
+  _playerRealtimeChannel=sb.channel('player-'+sessionId+'-'+Date.now())
     .on('postgres_changes',{event:'UPDATE',schema:'public',table:'live_sessions',filter:`id=eq.${sessionId}`},(payload)=>{
       applyLiveSessionUpdate(payload.new);
     })
