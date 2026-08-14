@@ -121,6 +121,12 @@ input:focus,select:focus{border-color:var(--primary);box-shadow:0 0 0 4px rgba(1
 .timeline-item:last-child{padding-bottom:0}
 .timeline-dot{position:absolute;left:-26px;top:1px;width:18px;height:18px;border-radius:50%;background:var(--panel);border:2px solid var(--primary);display:flex;align-items:center;justify-content:center;font-size:9px}
 .mastery-badge{display:inline-flex;align-items:center;justify-content:center;font-family:'Sora',sans-serif;font-weight:800;border-radius:10px;flex-shrink:0}
+.subtab-bar{display:flex;gap:6px;overflow-x:auto;margin-bottom:16px;padding-bottom:2px}
+.subtab-btn{border:1.5px solid var(--border);background:var(--panel);color:var(--ink-soft);border-radius:11px;padding:9px 15px;font-weight:700;font-size:12.5px;white-space:nowrap;cursor:pointer;transition:all .18s ease;flex-shrink:0}
+.subtab-btn.active{background:linear-gradient(135deg,var(--primary),var(--primaryDk));border-color:transparent;color:#fff;box-shadow:0 4px 12px rgba(15,107,62,.22)}
+.subtab-btn:not(.active):hover{border-color:var(--primary);color:var(--primaryDk)}
+.subtab-panel{display:none}
+.subtab-panel.active{display:block}
 .opt-btn{border:none;border-radius:18px;padding:clamp(18px,4vh,30px) 20px;color:#fff;font-size:clamp(16px,3vw,22px);font-weight:800;cursor:pointer;text-align:left;display:flex;align-items:center;gap:14px;transition:all .3s;width:100%;height:100%;min-height:clamp(90px,22vh,180px);box-shadow:0 4px 14px rgba(0,0,0,.18)}
 .opt-btn:hover:not(:disabled){transform:scale(1.02);box-shadow:0 8px 22px rgba(0,0,0,.28)}
 .opt-btn:hover:not(:disabled){filter:brightness(1.12);transform:scale(1.02)}
@@ -874,7 +880,12 @@ async function restoreHostLiveGame(persisted){
     renderPodiumScreen(rankedPlayers||[],liveGame.currentQ,true);
     goTo('s-podium');
     if(liveGame.settings.autoplay){
-      setTimeout(()=>{ if(liveGame.phase==='podium')hostNextQuestion(); },4000);
+      if(liveGame.autoplayTimer)clearTimeout(liveGame.autoplayTimer);
+      const scheduledForQ=liveGame.currentQ;
+      liveGame.autoplayTimer=setTimeout(()=>{
+        liveGame.autoplayTimer=null;
+        if(liveGame.phase==='podium'&&liveGame.currentQ===scheduledForQ)hostNextQuestion();
+      },4000);
     }
   }
 }
@@ -1112,6 +1123,10 @@ function toggleLiveSetting(key){
   liveGame.settings[key]=!liveGame.settings[key];
   const el=document.getElementById('tg-'+key);
   if(el)el.classList.toggle('on',liveGame.settings[key]);
+  if(key==='autoplay'&&!liveGame.settings.autoplay&&liveGame.autoplayTimer){
+    clearTimeout(liveGame.autoplayTimer);
+    liveGame.autoplayTimer=null;
+  }
   if(key==='music'){
     if(liveGame.settings.music&&liveGame.phase==='lobby')startLobbyMusic(); else stopLobbyMusic();
     if(liveGame.settings.music&&(liveGame.phase==='question'||liveGame.phase==='podium'))startQuizMusic(); else stopQuizMusic();
@@ -1171,6 +1186,7 @@ let liveGame = {
   settings: {autoplay:false, randomizeQuestions:false, randomizeOptions:false, sound:true, music:true},
   questionsOverride: null, // shuffled working copy of questions, if randomize is on
   rankHistory: {}, // playerId -> previous rank, for "climber"/"comeback" comments
+  autoplayTimer: null, // single tracked handle so autoplay can never double-schedule
 };
 let myPlayerSession = {
   pin: null,
@@ -1221,6 +1237,17 @@ function goTo(id){
   if(id==='s-quiz'||id==='s-podium')el.style.display='flex';
   const homeBtn=document.getElementById('global-home-btn');
   if(homeBtn)homeBtn.style.display=(id==='s-landing'||id==='s-boot')?'none':'flex';
+}
+// Switches between the Career page's sub-tabs (Overview / History /
+// Achievements / Timeline / Account). Deliberately separate from cTab/aTab
+// so it can't interfere with the main navigation — it only ever touches
+// elements inside #c-profilebody.
+function careerSubTab(id,btn){
+  document.querySelectorAll('#c-profilebody .subtab-panel').forEach(p=>p.classList.remove('active'));
+  const panel=document.getElementById(id);
+  if(panel)panel.classList.add('active');
+  document.querySelectorAll('#c-profilebody .subtab-btn').forEach(b=>b.classList.remove('active'));
+  if(btn)btn.classList.add('active');
 }
 async function cTab(id,btn){
   ['c-overview','c-joinlive','c-quizzes','c-leaderboard','c-reports','c-profile'].forEach(t=>{
@@ -1292,7 +1319,8 @@ function openPlayerCard(userId){
       <div style="text-align:center;margin-top:-8px">
         <div class="hero-avatar" style="margin:0 auto 12px;width:64px;height:64px;font-size:22px">${initials||'🙏'}</div>
         <div class="font-display" style="font-size:19px;font-weight:800">${u.name||'Contestant'}</div>
-        <div style="font-size:11.5px;color:rgba(255,255,255,.7);margin-top:2px;letter-spacing:.4px">${quizIdFor(u.supabaseId||u.id)}</div>
+        <div style="font-size:11.5px;color:rgba(255,255,255,.7);margin-top:2px;letter-spacing:.4px">${quizIdFor(u)}${u.country?' · '+u.country:''}</div>
+        ${u.bio?`<div style="font-size:12px;color:rgba(255,255,255,.85);margin-top:8px;max-width:260px;margin-left:auto;margin-right:auto">${u.bio}</div>`:''}
         <div style="display:flex;justify-content:center;gap:8px;margin-top:14px;flex-wrap:wrap">
           ${mastery!==null?`<span class="role-chip">🧭 ${mastery} Mastery</span>`:''}
           ${rank>0?`<span class="role-chip">🏆 #${rank} Global</span>`:''}
@@ -1322,11 +1350,16 @@ function genPin(){return Math.floor(100000+Math.random()*900000).toString();}
 //  the scores table rather than cached (see loadAllData()).
 // =====================================================================
 
-// A stable, human-friendly Quiz ID derived from the player's real Supabase
-// UUID. It's not a sequential "member #1, #2..." id (that would require a
-// new DB column/migration — a good Phase-2 addition), but it's the same
-// every time for the same account, and looks the part: LMTW-000042.
-function quizIdFor(userId){
+// A stable, human-friendly Quiz ID. Once phase2-player-identity.sql has
+// been run, this uses the real, permanent, sequential member_no from
+// profiles (LMTW-000001, 000002, ... in actual join order). Until then —
+// or for any user row where it's still null — it falls back to a
+// UUID-derived placeholder that's at least stable per-account, so the ID
+// shown never changes underneath a player once the real number exists.
+function quizIdFor(user){
+  const memberNo=(typeof user==='object'&&user)?user.memberNo:null;
+  if(memberNo)return 'LMTW-'+String(memberNo).padStart(6,'0');
+  const userId=(typeof user==='object'&&user)?(user.supabaseId||user.id):user;
   if(!userId)return 'LMTW-000000';
   let h=0;
   for(let i=0;i<userId.length;i++){h=((h<<5)-h+userId.charCodeAt(i))|0;}
@@ -1500,14 +1533,19 @@ async function loadAllData(){
   const {data:profiles,error:pErr}=await sb.from('profiles').select('*');
   if(pErr){console.error('profiles load error',pErr);return;}
 
-  // Safe public name lookup (id + name ONLY, no PII) — every signed-in user
-  // can read this regardless of the profiles RLS above, so per-quiz
-  // leaderboards and podiums can show everyone's real name instead of
-  // 'Unknown' even for players whose full profile row isn't visible to you.
-  const {data:publicNames,error:pubErr}=await sb.from('profiles_public').select('id,name');
+  // Safe public identity lookup — every signed-in user can read this
+  // regardless of the profiles RLS above, so per-quiz leaderboards and
+  // podiums can show everyone's real name instead of 'Unknown' even for
+  // players whose full profile row isn't visible to you. select('*') here
+  // (rather than a fixed column list) means this automatically starts
+  // returning country/bio/avatar_url/member_no the moment
+  // phase2-player-identity.sql has been run — no further code change
+  // needed either way.
+  const {data:publicRows,error:pubErr}=await sb.from('profiles_public').select('*');
   if(pubErr)console.warn('profiles_public load error (run fix-lmttw-database.sql)',pubErr);
   const nameById={};
-  (publicNames||[]).forEach(p=>{nameById[p.id]=p.name;});
+  const publicById={};
+  (publicRows||[]).forEach(p=>{nameById[p.id]=p.name; publicById[p.id]=p;});
 
   // Load all scores
   const {data:scores,error:sErr}=await sb.from('scores').select('*');
@@ -1548,6 +1586,14 @@ async function loadAllData(){
       totalScore,
       scores: myScores,
       flagged: p.flagged||false,
+      // These four only exist once phase2-player-identity.sql has been
+      // run — until then p.country etc. are simply undefined and every
+      // spot that reads them (Career page, Player Card) already treats
+      // that as "not set yet", so this is safe either way.
+      country: p.country||publicById[p.id]?.country||null,
+      bio: p.bio||publicById[p.id]?.bio||null,
+      avatarUrl: p.avatar_url||publicById[p.id]?.avatar_url||null,
+      memberNo: p.member_no||publicById[p.id]?.member_no||null,
       bank: {
         name: p.bank_name||'—',
         bankName: p.bank_institution||'—',
@@ -1564,10 +1610,12 @@ async function loadAllData(){
   stubIds.forEach(id=>{
     if(id&&!knownIds.has(id)){
       const myScores=scoreList.filter(s=>s.user_id===id).map(s=>({id:s.id,quiz:s.quiz_name||'Unknown',quizId:s.quiz_id,score:s.score||0,date:(s.played_at||'').split('T')[0],mode:s.mode||'live',breakdown:s.breakdown||null}));
+      const pub=publicById[id];
       users.push({
         id, supabaseId:id, name:nameById[id]||'Player', email:'—', phone:'—',
         role:'contestant', status:'approved', joinDate:'',
         totalScore:myScores.reduce((a,s)=>a+s.score,0), scores:myScores, flagged:false,
+        country: pub?.country||null, bio: pub?.bio||null, avatarUrl: pub?.avatar_url||null, memberNo: pub?.member_no||null,
         bank:{name:'—',bankName:'—',accountNumber:'—'}
       });
       knownIds.add(id);
@@ -1621,7 +1669,7 @@ function doLogout(){
   currentUser=null;activeQuiz=null;quizState=null;users=[];quizzes=[];
   if(timerInterval)clearInterval(timerInterval);
   if(liveGame.hostTimer)clearInterval(liveGame.hostTimer);
-  liveGame={pin:null,quizId:null,sessionId:null,players:{},currentQ:0,phase:'lobby',hostTimer:null,realtimeSub:null,answerCounts:[],totalAnswered:0,settings:{autoplay:false,randomizeQuestions:false,randomizeOptions:false,sound:true,music:true},questionsOverride:null,rankHistory:{}};
+  liveGame={pin:null,quizId:null,sessionId:null,players:{},currentQ:0,phase:'lobby',hostTimer:null,realtimeSub:null,answerCounts:[],totalAnswered:0,settings:{autoplay:false,randomizeQuestions:false,randomizeOptions:false,sound:true,music:true},questionsOverride:null,rankHistory:{},autoplayTimer:null};
   myPlayerSession={pin:null,nickname:null,playerId:null,authUid:null,score:0,currentQ:0,quizId:null,sessionId:null};
   clearPersistedSession();
   const sb=getSupabase();
@@ -2011,6 +2059,21 @@ function hostStartTimer(startFrom){
   },1000);
 }
 async function hostRevealAnswers(){
+  // Guard against being entered twice for the same question. This used to
+  // be missing, and liveGame.phase was never actually flipped to 'podium'
+  // below (only the remote live_sessions row was updated) — so if both the
+  // countdown timer hitting 0 AND "everyone has answered" fired close
+  // together, this function ran twice, each scheduling its own 4-second
+  // autoplay timer. Two stacked timers meant hostNextQuestion() could fire
+  // twice back-to-back, skipping a question before players could see it —
+  // exactly the "snapping" behaviour reported with autoplay on. Setting the
+  // phase here, synchronously, before any await, closes that race: a second
+  // call arriving right behind the first will see 'podium' immediately and
+  // bail out below.
+  if(liveGame.phase==='podium')return;
+  liveGame.phase='podium';
+  if(liveGame.hostTimer){clearInterval(liveGame.hostTimer);liveGame.hostTimer=null;}
+
   const q=getActiveQuestion();
   // Highlight correct answer green, grey out wrong, animate bars — only
   // meaningful for option-based types (mcq/truefalse); other types show
@@ -2046,13 +2109,28 @@ async function hostRevealAnswers(){
     const comment=commentForPlayer(top.auth_uid,players,true,0);
     showKahootComment('🏆 '+top.nickname+' — '+comment);
   }
-  // Autoplay: if enabled, auto-advance after 4 seconds
+  // Autoplay: if enabled, auto-advance after 4 seconds. Tracked on a single
+  // handle (liveGame.autoplayTimer) and cleared before scheduling, so even
+  // if something upstream ever calls this twice again, only one timer can
+  // ever be pending at a time. The 4-second-later check is intentionally
+  // strict ('podium' only) — if the host has already manually advanced by
+  // then, phase will be 'question' or 'done' and this becomes a no-op.
   if(liveGame.settings.autoplay){
-    setTimeout(()=>{ if(liveGame.phase==='podium'||liveGame.phase==='question')hostNextQuestion(); },4000);
+    if(liveGame.autoplayTimer)clearTimeout(liveGame.autoplayTimer);
+    const scheduledForQ=liveGame.currentQ;
+    liveGame.autoplayTimer=setTimeout(()=>{
+      liveGame.autoplayTimer=null;
+      if(liveGame.phase==='podium'&&liveGame.currentQ===scheduledForQ)hostNextQuestion();
+    },4000);
   }
   goTo('s-podium');
 }
 async function hostNextQuestion(){
+  // Whether this call came from the autoplay timer or a manual click,
+  // cancel any other pending autoplay timer first — otherwise a manual
+  // click during the 4-second autoplay countdown could leave that old
+  // timer alive to fire a second, unwanted advance a few seconds later.
+  if(liveGame.autoplayTimer){clearTimeout(liveGame.autoplayTimer);liveGame.autoplayTimer=null;}
   const qz=quizzes.find(q=>q.id===liveGame.quizId);
   const qList=liveGame.questionsOverride||qz.questions;
   const next=liveGame.currentQ+1;
@@ -2630,7 +2708,7 @@ function renderContestantProfile(){
   const achievements=computeAchievements(u);
   const unlockedCount=achievements.filter(a=>a.unlocked).length;
   const timeline=computeCareerTimeline(u);
-  const quizId=quizIdFor(u.supabaseId||u.id);
+  const quizId=quizIdFor(u);
   const masteryColor=mastery===null?'var(--muted)':mastery>=80?'#0f6b3e':mastery>=60?'#1157a8':mastery>=40?'#c67c0e':'#c0392b';
 
   // Cache breakdowns so "Recent Quiz History" rows can reuse the exact same
@@ -2640,8 +2718,8 @@ function renderContestantProfile(){
   withAcc.forEach(s=>{if(s.id)window._myReportAttempts[s.id]=s.breakdown;});
 
   document.getElementById('c-profilebody').innerHTML=`
-    <!-- ============ IDENTITY CARD ============ -->
-    <div class="hero-card" style="margin-bottom:18px">
+    <!-- ============ IDENTITY CARD (always visible, anchors the page) ============ -->
+    <div class="hero-card" style="margin-bottom:16px">
       <div style="position:relative;display:flex;align-items:center;gap:18px;flex-wrap:wrap">
         <div class="hero-avatar">${initials||'🙏'}</div>
         <div style="flex:1;min-width:200px">
@@ -2657,127 +2735,143 @@ function renderContestantProfile(){
       </div>
     </div>
 
-    <!-- ============ MASTERY PROGRESSION ============ -->
-    <div class="card lift" style="margin-bottom:16px">
-      <div style="display:flex;justify-content:space-between;align-items:baseline;flex-wrap:wrap;gap:6px;margin-bottom:6px">
-        <div class="section-title" style="margin-bottom:0">🧭 Bible Mastery Progression</div>
-        ${highestMastery!==null?`<span class="text-muted" style="font-size:11.5px;color:var(--muted)">Highest: ${highestMastery}</span>`:''}
-      </div>
-      ${mastery===null
-        ?`<div style="color:var(--muted);font-size:13.5px;padding:10px 0">Play your first quiz to start building your Bible Mastery record. 📖</div>`
-        :`<div style="position:relative;height:150px"><canvas id="ch-mastery"></canvas></div>
-           <div style="font-size:11.5px;color:var(--muted);margin-top:8px">Weighted from accuracy (most-recent quizzes count most), consistency across quizzes, and experience — not simply total points.</div>`}
+    <!-- ============ SUB-TAB NAV ============ -->
+    <div class="subtab-bar">
+      <button class="subtab-btn active" onclick="careerSubTab('cc-overview',this)">🧭 Overview</button>
+      <button class="subtab-btn" onclick="careerSubTab('cc-history',this)">🗂️ History</button>
+      <button class="subtab-btn" onclick="careerSubTab('cc-achievements',this)">🏆 Achievements</button>
+      <button class="subtab-btn" onclick="careerSubTab('cc-timeline',this)">🕊️ Timeline</button>
+      <button class="subtab-btn" onclick="careerSubTab('cc-account',this)">🔒 Account</button>
     </div>
 
-    <!-- ============ CAREER OVERVIEW ============ -->
-    <div class="section-eyebrow" style="margin:0 2px 8px">Career Overview</div>
-    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:10px;margin-bottom:18px">
-      ${[
-        ['📖','Quizzes Played',played,'linear-gradient(150deg,#dcefe4,#0f6b3e)'],
-        ['✅','Accuracy',overallAcc!==null?overallAcc+'%':'—','linear-gradient(150deg,#d6f2ee,#00897B)'],
-        ['❓','Questions Answered',totalQ,'linear-gradient(150deg,#d7ecff,#1157a8)'],
-        ['⭐','Points Earned',(u.totalScore||0).toLocaleString(),'linear-gradient(150deg,#ffe6a8,#eda515)'],
-        ['🏅','Best Score',bestEntry?(bestEntry.score||0).toLocaleString():'—','linear-gradient(150deg,#ffe9c2,#c67c0e)'],
-        ['🎯','Best Accuracy',bestAccEntry?bestAccEntry.acc+'%':'—','linear-gradient(150deg,#efe0f7,#6A1B9A)'],
-      ].map(([icon,l,v,grad])=>`<div class="stat-chip">
-        <div class="si" style="background:${grad};color:#fff">${icon}</div>
-        <div class="sv">${v}</div>
-        <div class="sl">${l}</div>
-      </div>`).join('')}
-    </div>
-
-    <!-- ============ CURRENT FORM ============ -->
-    <div class="card lift" style="margin-bottom:16px">
-      <div class="section-title">📈 Current Quiz Form</div>
-      ${form.recent.length===0?`<div style="color:var(--muted);font-size:13.5px">No recent quizzes yet.</div>`:`
-        <div style="display:flex;gap:8px;margin-bottom:10px;flex-wrap:wrap">
-          ${form.recent.map(s=>{const t=formTierOf(s.acc);return `<div class="form-tier" title="${t.label} — ${s.acc}%" style="background:${t.bg};color:${t.color}">${t.code}</div>`;}).join('')}
+    <!-- ============ OVERVIEW ============ -->
+    <div class="subtab-panel active" id="cc-overview">
+      <div class="card lift" style="margin-bottom:16px">
+        <div style="display:flex;justify-content:space-between;align-items:baseline;flex-wrap:wrap;gap:6px;margin-bottom:6px">
+          <div class="section-title" style="margin-bottom:0">🧭 Bible Mastery Progression</div>
+          ${highestMastery!==null?`<span class="text-muted" style="font-size:11.5px;color:var(--muted)">Highest: ${highestMastery}</span>`:''}
         </div>
-        <div style="font-size:12.5px;color:var(--muted)">🔥 Current strong-quiz streak (70%+ accuracy): <strong style="color:var(--ink)">${form.streak}</strong></div>`}
-    </div>
-
-    <!-- ============ RECENT QUIZ HISTORY ============ -->
-    <div class="card lift" style="margin-bottom:16px">
-      <div class="section-title">🗂️ Recent Quiz History</div>
-      ${withAcc.length===0?`<div style="color:var(--muted);font-size:13.5px">Your quiz history will appear here once you play. 🎯</div>`:
-        [...withAcc].sort((a,b)=>(b.date||'').localeCompare(a.date||'')).slice(0,8).map((s,i,arr)=>{
-          const t=formTierOf(s.acc);
-          return `<div class="list-row" style="${i===arr.length-1?'border-bottom:none':''};${s.id&&s.breakdown?'cursor:pointer':''}" ${s.id&&s.breakdown?`onclick="showBreakdownModal(window._myReportAttempts['${s.id}'],'${(s.quiz||'').replace(/'/g,"\\'")}')"`:''}>
-            <div class="form-tier" style="background:${t.bg};color:${t.color}">${t.code}</div>
-            <div style="flex:1;min-width:0"><div style="font-weight:700;font-size:13.5px">${s.quiz}</div><div style="font-size:11.5px;color:var(--muted)">${s.date||'—'} · ${s.mode==='live'?'Live game':'Solo play'}${s.acc!==null?' · '+s.acc+'% accuracy':''}</div></div>
-            <div style="font-weight:800;font-size:14px;color:var(--primary)">${(s.score||0).toLocaleString()}</div>
-          </div>`;
-        }).join('')}
-    </div>
-
-    <!-- ============ ACHIEVEMENTS & HONORS ============ -->
-    <div class="card lift" style="margin-bottom:16px">
-      <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:4px">
-        <div class="section-title" style="margin-bottom:0">🏆 Achievements &amp; Honors</div>
-        <span class="text-muted" style="font-size:11.5px;color:var(--muted)">${unlockedCount} / ${achievements.length} unlocked</span>
+        ${mastery===null
+          ?`<div style="color:var(--muted);font-size:13.5px;padding:10px 0">Play your first quiz to start building your Bible Mastery record. 📖</div>`
+          :`<div style="position:relative;height:150px"><canvas id="ch-mastery"></canvas></div>
+             <div style="font-size:11.5px;color:var(--muted);margin-top:8px">Weighted from accuracy (most-recent quizzes count most), consistency across quizzes, and experience — not simply total points.</div>`}
       </div>
-      ${['Participation','Performance','Consistency'].map(cat=>{
-        const items=achievements.filter(a=>a.cat===cat);
-        return `<div style="margin:14px 0 6px">
-          <div style="font-size:10.5px;font-weight:800;letter-spacing:1px;color:var(--muted);text-transform:uppercase;margin-bottom:8px">${cat}</div>
-          <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(96px,1fr));gap:8px">
-            ${items.map(a=>`<div class="ach-tile ${a.unlocked?'unlocked':'locked'}" title="${a.desc}">
-              <div style="font-size:20px">${a.icon}</div>
-              <div style="font-size:10.5px;font-weight:800;margin-top:4px;line-height:1.2">${a.name}</div>
-              ${!a.unlocked?`<div class="progress-track" style="margin-top:6px"><div class="progress-fill" style="width:${Math.round(a.progress*100)}%;background:var(--secondary)"></div></div><div style="font-size:9px;color:var(--muted);margin-top:3px">${Math.min(a.have,a.need)}/${a.need}</div>`:'<div style="font-size:9px;color:var(--gold);font-weight:800;margin-top:5px">UNLOCKED</div>'}
-            </div>`).join('')}
-          </div>
-        </div>`;
-      }).join('')}
-      <div style="margin-top:12px;padding-top:12px;border-top:1px dashed var(--border);font-size:11.5px;color:var(--muted)">📚 Bible Knowledge honors (e.g. New Testament / Old Testament mastery) unlock once questions are tagged by category — coming in a future update.</div>
-    </div>
 
-    <!-- ============ QUIZ RECORDS ============ -->
-    <div class="card lift" style="margin-bottom:16px">
-      <div class="section-title">📊 Quiz Records</div>
-      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px">
+      <div class="section-eyebrow" style="margin:0 2px 8px">Career Overview</div>
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:10px;margin-bottom:18px">
         ${[
-          ['Highest Mastery',highestMastery!==null?highestMastery:'—'],
-          ['Highest Global Rank',myRank>0?'#'+myRank:'—'],
-          ['Best Quiz Score',bestEntry?(bestEntry.score||0).toLocaleString():'—'],
-          ['Best Accuracy',bestAccEntry?bestAccEntry.acc+'%':'—'],
-          ['Longest Strong-Quiz Streak',form.streak],
-          ['Total Points Earned',(u.totalScore||0).toLocaleString()],
-        ].map(([label,val])=>`<div class="stat-chip" style="text-align:left">
-          <div class="sv" style="font-size:18px">${val}</div>
-          <div class="sl" style="margin-top:5px">${label}</div>
+          ['📖','Quizzes Played',played,'linear-gradient(150deg,#dcefe4,#0f6b3e)'],
+          ['✅','Accuracy',overallAcc!==null?overallAcc+'%':'—','linear-gradient(150deg,#d6f2ee,#00897B)'],
+          ['❓','Questions Answered',totalQ,'linear-gradient(150deg,#d7ecff,#1157a8)'],
+          ['⭐','Points Earned',(u.totalScore||0).toLocaleString(),'linear-gradient(150deg,#ffe6a8,#eda515)'],
+          ['🏅','Best Score',bestEntry?(bestEntry.score||0).toLocaleString():'—','linear-gradient(150deg,#ffe9c2,#c67c0e)'],
+          ['🎯','Best Accuracy',bestAccEntry?bestAccEntry.acc+'%':'—','linear-gradient(150deg,#efe0f7,#6A1B9A)'],
+        ].map(([icon,l,v,grad])=>`<div class="stat-chip">
+          <div class="si" style="background:${grad};color:#fff">${icon}</div>
+          <div class="sv">${v}</div>
+          <div class="sl">${l}</div>
         </div>`).join('')}
       </div>
+
+      <div class="card lift">
+        <div class="section-title">📈 Current Quiz Form</div>
+        ${form.recent.length===0?`<div style="color:var(--muted);font-size:13.5px">No recent quizzes yet.</div>`:`
+          <div style="display:flex;gap:8px;margin-bottom:10px;flex-wrap:wrap">
+            ${form.recent.map(s=>{const t=formTierOf(s.acc);return `<div class="form-tier" title="${t.label} — ${s.acc}%" style="background:${t.bg};color:${t.color}">${t.code}</div>`;}).join('')}
+          </div>
+          <div style="font-size:12.5px;color:var(--muted)">🔥 Current strong-quiz streak (70%+ accuracy): <strong style="color:var(--ink)">${form.streak}</strong></div>`}
+      </div>
     </div>
 
-    <!-- ============ CAREER TIMELINE ============ -->
-    <div class="card lift" style="margin-bottom:20px">
-      <div class="section-title">🕊️ Quiz Career Timeline</div>
-      ${timeline.length===0?`<div style="color:var(--muted);font-size:13.5px">Your journey will be recorded here as you play.</div>`:
-        `<div class="timeline-rail">${timeline.map(ev=>`
-          <div class="timeline-item">
-            <div class="timeline-dot">${ev.icon}</div>
-            <div style="font-weight:700;font-size:13.5px">${ev.title}</div>
-            <div style="font-size:11.5px;color:var(--muted)">${ev.date||'—'}</div>
-          </div>`).join('')}</div>`}
+    <!-- ============ HISTORY ============ -->
+    <div class="subtab-panel" id="cc-history">
+      <div class="card lift">
+        <div class="section-title">🗂️ Recent Quiz History</div>
+        ${withAcc.length===0?`<div style="color:var(--muted);font-size:13.5px">Your quiz history will appear here once you play. 🎯</div>`:
+          [...withAcc].sort((a,b)=>(b.date||'').localeCompare(a.date||'')).slice(0,20).map((s,i,arr)=>{
+            const t=formTierOf(s.acc);
+            return `<div class="list-row" style="${i===arr.length-1?'border-bottom:none':''};${s.id&&s.breakdown?'cursor:pointer':''}" ${s.id&&s.breakdown?`onclick="showBreakdownModal(window._myReportAttempts['${s.id}'],'${(s.quiz||'').replace(/'/g,"\\'")}')"`:''}>
+              <div class="form-tier" style="background:${t.bg};color:${t.color}">${t.code}</div>
+              <div style="flex:1;min-width:0"><div style="font-weight:700;font-size:13.5px">${s.quiz}</div><div style="font-size:11.5px;color:var(--muted)">${s.date||'—'} · ${s.mode==='live'?'Live game':'Solo play'}${s.acc!==null?' · '+s.acc+'% accuracy':''}</div></div>
+              <div style="font-weight:800;font-size:14px;color:var(--primary)">${(s.score||0).toLocaleString()}</div>
+            </div>`;
+          }).join('')}
+      </div>
+    </div>
+
+    <!-- ============ ACHIEVEMENTS (+ RECORDS) ============ -->
+    <div class="subtab-panel" id="cc-achievements">
+      <div class="card lift" style="margin-bottom:16px">
+        <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:4px">
+          <div class="section-title" style="margin-bottom:0">🏆 Achievements &amp; Honors</div>
+          <span class="text-muted" style="font-size:11.5px;color:var(--muted)">${unlockedCount} / ${achievements.length} unlocked</span>
+        </div>
+        ${['Participation','Performance','Consistency'].map(cat=>{
+          const items=achievements.filter(a=>a.cat===cat);
+          return `<div style="margin:14px 0 6px">
+            <div style="font-size:10.5px;font-weight:800;letter-spacing:1px;color:var(--muted);text-transform:uppercase;margin-bottom:8px">${cat}</div>
+            <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(96px,1fr));gap:8px">
+              ${items.map(a=>`<div class="ach-tile ${a.unlocked?'unlocked':'locked'}" title="${a.desc}">
+                <div style="font-size:20px">${a.icon}</div>
+                <div style="font-size:10.5px;font-weight:800;margin-top:4px;line-height:1.2">${a.name}</div>
+                ${!a.unlocked?`<div class="progress-track" style="margin-top:6px"><div class="progress-fill" style="width:${Math.round(a.progress*100)}%;background:var(--secondary)"></div></div><div style="font-size:9px;color:var(--muted);margin-top:3px">${Math.min(a.have,a.need)}/${a.need}</div>`:'<div style="font-size:9px;color:var(--gold);font-weight:800;margin-top:5px">UNLOCKED</div>'}
+              </div>`).join('')}
+            </div>
+          </div>`;
+        }).join('')}
+        <div style="margin-top:12px;padding-top:12px;border-top:1px dashed var(--border);font-size:11.5px;color:var(--muted)">📚 Bible Knowledge honors (e.g. New Testament / Old Testament mastery) unlock once questions are tagged by category — coming in a future update.</div>
+      </div>
+
+      <div class="card lift">
+        <div class="section-title">📊 Quiz Records</div>
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px">
+          ${[
+            ['Highest Mastery',highestMastery!==null?highestMastery:'—'],
+            ['Highest Global Rank',myRank>0?'#'+myRank:'—'],
+            ['Best Quiz Score',bestEntry?(bestEntry.score||0).toLocaleString():'—'],
+            ['Best Accuracy',bestAccEntry?bestAccEntry.acc+'%':'—'],
+            ['Longest Strong-Quiz Streak',form.streak],
+            ['Total Points Earned',(u.totalScore||0).toLocaleString()],
+          ].map(([label,val])=>`<div class="stat-chip" style="text-align:left">
+            <div class="sv" style="font-size:18px">${val}</div>
+            <div class="sl" style="margin-top:5px">${label}</div>
+          </div>`).join('')}
+        </div>
+      </div>
+    </div>
+
+    <!-- ============ TIMELINE ============ -->
+    <div class="subtab-panel" id="cc-timeline">
+      <div class="card lift">
+        <div class="section-title">🕊️ Quiz Career Timeline</div>
+        ${timeline.length===0?`<div style="color:var(--muted);font-size:13.5px">Your journey will be recorded here as you play.</div>`:
+          `<div class="timeline-rail">${timeline.map(ev=>`
+            <div class="timeline-item">
+              <div class="timeline-dot">${ev.icon}</div>
+              <div style="font-weight:700;font-size:13.5px">${ev.title}</div>
+              <div style="font-size:11.5px;color:var(--muted)">${ev.date||'—'}</div>
+            </div>`).join('')}</div>`}
+      </div>
     </div>
 
     <!-- ============ ACCOUNT & PAYOUT (kept separate from the Career story) ============ -->
-    <div class="section-eyebrow" style="margin:0 2px 8px">Private — only visible to you</div>
-    <div class="card" style="margin-bottom:8px">
-      <div class="section-title">🔒 Account &amp; Payout Details</div>
-      ${[
-        ['✉️ Email',u.email||'—'],
-        ['📱 Phone',u.phone||'—'],
-        ['🗓️ Join Date',u.joinDate||'—'],
-        ['💳 Account Name',u.bank?.name||'—'],
-        ['🏦 Bank Name',u.bank?.bankName||'—'],
-        ['🔢 Account Number',String(u.bank?.accountNumber||'—').replace(/(\d{4})(\d{4})(\d+)/,'$1 $2 $3')]
-      ].map(([l,v],i,arr)=>`
-        <div class="list-row" style="${i===arr.length-1?'border-bottom:none':''}">
-          <span style="color:var(--muted);font-weight:700;font-size:13.5px;flex:1">${l}</span>
-          <span style="font-weight:700;font-size:14px">${v}</span>
-        </div>`).join('')}
+    <div class="subtab-panel" id="cc-account">
+      <div class="section-eyebrow" style="margin:0 2px 8px">Private — only visible to you</div>
+      <div class="card">
+        <div class="section-title">🔒 Account &amp; Payout Details</div>
+        ${[
+          ['✉️ Email',u.email||'—'],
+          ['📱 Phone',u.phone||'—'],
+          ['🗓️ Join Date',u.joinDate||'—'],
+          ['💳 Account Name',u.bank?.name||'—'],
+          ['🏦 Bank Name',u.bank?.bankName||'—'],
+          ['🔢 Account Number',String(u.bank?.accountNumber||'—').replace(/(\d{4})(\d{4})(\d+)/,'$1 $2 $3')]
+        ].map(([l,v],i,arr)=>`
+          <div class="list-row" style="${i===arr.length-1?'border-bottom:none':''}">
+            <span style="color:var(--muted);font-weight:700;font-size:13.5px;flex:1">${l}</span>
+            <span style="font-weight:700;font-size:14px">${v}</span>
+          </div>`).join('')}
+      </div>
     </div>`;
 
   // Mastery progression chart — same Chart.js instance already loaded for
