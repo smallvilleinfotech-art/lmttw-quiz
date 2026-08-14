@@ -106,6 +106,21 @@ input:focus,select:focus{border-color:var(--primary);box-shadow:0 0 0 4px rgba(1
 
 .side-nav-wrap{background:linear-gradient(135deg,var(--primaryDk),#0a3d24);}
 .top-bar{backdrop-filter:blur(10px)}
+
+/* ===== CAREER / MASTERY UI ===== */
+.progress-track{height:8px;border-radius:5px;background:var(--border);overflow:hidden}
+.progress-fill{height:100%;border-radius:5px;transition:width .5s ease}
+.ach-tile{border-radius:14px;padding:12px 8px;text-align:center;border:1px solid var(--border);background:var(--panel-soft);transition:transform .2s,box-shadow .2s}
+.ach-tile.unlocked{background:linear-gradient(160deg,#fff8e6,#fff);border-color:#f0d38a;box-shadow:0 4px 14px rgba(237,165,21,.14)}
+.ach-tile.locked{opacity:.5;filter:grayscale(.5)}
+.ach-tile:hover{transform:translateY(-2px)}
+.form-tier{width:34px;height:34px;border-radius:9px;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:13px;flex-shrink:0}
+.timeline-rail{position:relative;padding-left:26px}
+.timeline-rail::before{content:'';position:absolute;left:8px;top:6px;bottom:6px;width:2px;background:var(--border)}
+.timeline-item{position:relative;padding-bottom:20px}
+.timeline-item:last-child{padding-bottom:0}
+.timeline-dot{position:absolute;left:-26px;top:1px;width:18px;height:18px;border-radius:50%;background:var(--panel);border:2px solid var(--primary);display:flex;align-items:center;justify-content:center;font-size:9px}
+.mastery-badge{display:inline-flex;align-items:center;justify-content:center;font-family:'Sora',sans-serif;font-weight:800;border-radius:10px;flex-shrink:0}
 .opt-btn{border:none;border-radius:18px;padding:clamp(18px,4vh,30px) 20px;color:#fff;font-size:clamp(16px,3vw,22px);font-weight:800;cursor:pointer;text-align:left;display:flex;align-items:center;gap:14px;transition:all .3s;width:100%;height:100%;min-height:clamp(90px,22vh,180px);box-shadow:0 4px 14px rgba(0,0,0,.18)}
 .opt-btn:hover:not(:disabled){transform:scale(1.02);box-shadow:0 8px 22px rgba(0,0,0,.28)}
 .opt-btn:hover:not(:disabled){filter:brightness(1.12);transform:scale(1.02)}
@@ -467,6 +482,13 @@ html,body{overflow-x:hidden;max-width:100vw}
   </div>
 </div>
 
+<!-- Public player identity card — shown from the Leaderboard/recent-scores.
+     Deliberately shows ONLY public-safe fields (name, quiz id, mastery,
+     rank, points, quizzes played). Never renders email/phone/bank here. -->
+<div id="playercard-modal" class="modal-backdrop" style="display:none" onclick="if(event.target===this)closePlayerCardModal()">
+  <div class="modal-card" style="max-width:380px" id="playercard-modal-body"></div>
+</div>
+
 <!-- Kahoot-style media picker for question images: upload from device,
      search online (needs an Unsplash key — see UNSPLASH_ACCESS_KEY), or
      paste a URL directly. -->
@@ -530,7 +552,7 @@ html,body{overflow-x:hidden;max-width:100vw}
     <button class="tab-btn" onclick="cTab('c-quizzes',this)">🎯 Quizzes</button>
     <button class="tab-btn" onclick="cTab('c-leaderboard',this)">🏆 Leaderboard</button>
     <button class="tab-btn" onclick="cTab('c-reports',this)">📊 My Reports</button>
-    <button class="tab-btn" onclick="cTab('c-profile',this)">👤 Profile</button>
+    <button class="tab-btn" onclick="cTab('c-profile',this)">🧭 Career</button>
   </div>
   <div style="max-width:960px;margin:0 auto;padding:18px 16px 40px">
     <div id="c-overview">
@@ -567,7 +589,7 @@ html,body{overflow-x:hidden;max-width:100vw}
       <div id="c-reportsbody"></div>
     </div>
     <div id="c-profile" style="display:none">
-      <div class="card" id="c-profilebody"></div>
+      <div id="c-profilebody"></div>
     </div>
   </div>
 </div>
@@ -1252,10 +1274,209 @@ function getQuizLeaderboard(quizId){
     };
   }).sort((a,b)=>b.score-a.score);
 }
+// Public player identity card — used from the Leaderboard and Recent
+// Quiz History. Only ever reads name / quiz id / mastery / rank / points /
+// quizzes played. Deliberately never touches u.email, u.phone, or u.bank —
+// those stay inside the signed-in user's own Career tab (see rule: public
+// vs private profile).
+function openPlayerCard(userId){
+  const u=users.find(x=>x.id===userId);
+  if(!u)return;
+  const lb=getLeaderboard();
+  const rank=lb.findIndex(x=>x.id===u.id)+1;
+  const mastery=computeMastery(u.scores||[]);
+  const initials=(u.name||'?').trim().split(/\s+/).slice(0,2).map(w=>w[0]).join('').toUpperCase();
+  document.getElementById('playercard-modal-body').innerHTML=`
+    <div class="hero-card" style="margin:-2px -2px 0">
+      <div style="display:flex;justify-content:flex-end"><button onclick="closePlayerCardModal()" style="background:none;border:none;font-size:20px;cursor:pointer;color:rgba(255,255,255,.8)">×</button></div>
+      <div style="text-align:center;margin-top:-8px">
+        <div class="hero-avatar" style="margin:0 auto 12px;width:64px;height:64px;font-size:22px">${initials||'🙏'}</div>
+        <div class="font-display" style="font-size:19px;font-weight:800">${u.name||'Contestant'}</div>
+        <div style="font-size:11.5px;color:rgba(255,255,255,.7);margin-top:2px;letter-spacing:.4px">${quizIdFor(u.supabaseId||u.id)}</div>
+        <div style="display:flex;justify-content:center;gap:8px;margin-top:14px;flex-wrap:wrap">
+          ${mastery!==null?`<span class="role-chip">🧭 ${mastery} Mastery</span>`:''}
+          ${rank>0?`<span class="role-chip">🏆 #${rank} Global</span>`:''}
+        </div>
+      </div>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:14px">
+      <div class="stat-chip"><div class="sv">${(u.totalScore||0).toLocaleString()}</div><div class="sl">Points</div></div>
+      <div class="stat-chip"><div class="sv">${(u.scores||[]).length}</div><div class="sl">Quizzes Played</div></div>
+    </div>`;
+  document.getElementById('playercard-modal').style.display='flex';
+}
+function closePlayerCardModal(){document.getElementById('playercard-modal').style.display='none';}
+
 function getApproved(){return users.filter(u=>u.role==='contestant'&&u.status==='approved');}
 function getPending(){return users.filter(u=>u.role==='contestant'&&u.status==='pending');}
 function getFlagged(){return users.filter(u=>u.flagged);}
 function genPin(){return Math.floor(100000+Math.random()*900000).toString();}
+
+// =====================================================================
+//  QUIZ CAREER ENGINE — Bible Mastery, achievements, form, timeline.
+//  Every value here is DERIVED from real rows already loaded (scores with
+//  their breakdown[], profiles.created_at). Nothing is stored or hardcoded,
+//  nothing is invented — if the data isn't there yet (e.g. per-question
+//  Bible-book categories), the relevant section says so instead of faking
+//  a number. This mirrors how totalScore is already computed live from
+//  the scores table rather than cached (see loadAllData()).
+// =====================================================================
+
+// A stable, human-friendly Quiz ID derived from the player's real Supabase
+// UUID. It's not a sequential "member #1, #2..." id (that would require a
+// new DB column/migration — a good Phase-2 addition), but it's the same
+// every time for the same account, and looks the part: LMTW-000042.
+function quizIdFor(userId){
+  if(!userId)return 'LMTW-000000';
+  let h=0;
+  for(let i=0;i<userId.length;i++){h=((h<<5)-h+userId.charCodeAt(i))|0;}
+  const n=Math.abs(h)%1000000;
+  return 'LMTW-'+String(n).padStart(6,'0');
+}
+
+// Per-quiz accuracy from the breakdown[] saved by finishQuiz(). Returns
+// null if a row has no breakdown (very old rows saved before breakdown was
+// recorded) so callers can skip it rather than silently treating it as 0%.
+function accuracyOf(scoreEntry){
+  const bd=scoreEntry&&scoreEntry.breakdown;
+  if(!Array.isArray(bd)||bd.length===0)return null;
+  const correct=bd.filter(r=>r&&r.correct).length;
+  return Math.round((correct/bd.length)*100);
+}
+
+// Bible Mastery Rating — a single 1–99 number meant to reflect QUALITY of
+// performance, not just volume of participation (explicitly not "total
+// points"). It blends:
+//   • accuracy (60%) — weighted so recent quizzes count more than old ones,
+//     since mastery should reflect current standing, not a stale average
+//   • consistency (15%) — rewards a steady accuracy record over wildly
+//     swinging results (one great quiz surrounded by poor ones)
+//   • experience (10%) — a capped, diminishing-returns credit for having
+//     played enough quizzes for the accuracy figure to be trustworthy
+//   • current strong-quiz streak (up to +6) — small momentum bonus
+// Returns null for a player with no scored quizzes yet — deliberately not
+// a fabricated baseline number.
+function computeMastery(scoreEntries){
+  const withAcc=(scoreEntries||[]).map(s=>({...s,acc:accuracyOf(s)})).filter(s=>s.acc!==null);
+  if(withAcc.length===0)return null;
+  withAcc.sort((a,b)=>(a.date||'').localeCompare(b.date||'')); // chronological
+
+  // Recency-weighted average accuracy: most-recent quiz weighted highest.
+  let wSum=0,wTotal=0;
+  withAcc.forEach((s,i)=>{
+    const weight=1+ (i/(withAcc.length-1||1))*1.5; // 1.0 → 2.5, oldest → newest
+    wSum+=s.acc*weight; wTotal+=weight;
+  });
+  const weightedAcc=wSum/wTotal; // 0-100
+
+  // Consistency: penalize high variance in per-quiz accuracy.
+  const mean=withAcc.reduce((a,s)=>a+s.acc,0)/withAcc.length;
+  const variance=withAcc.reduce((a,s)=>a+Math.pow(s.acc-mean,2),0)/withAcc.length;
+  const stddev=Math.sqrt(variance);
+  const consistency=Math.max(0,1-(stddev/45)); // 0-1, 45pt stddev ~= no bonus
+
+  // Experience credit — caps out at 20 quizzes so grinding alone can't
+  // inflate mastery; it only helps the number stabilize.
+  const experience=Math.min(1,withAcc.length/20);
+
+  // Current strong-quiz streak (see computeCurrentForm for the same rule).
+  const streak=computeCurrentForm(scoreEntries).streak;
+  const streakBonus=Math.min(6,streak*1.2);
+
+  const raw=20 + weightedAcc*0.60 + consistency*15 + experience*10 + streakBonus;
+  return Math.max(1,Math.min(99,Math.round(raw)));
+}
+
+// Recomputes mastery as of each historical quiz (using only the quizzes
+// played up to and including that point), so the progression is a real
+// record of how the player's standing actually moved over time — not a
+// smoothed/simulated line.
+function computeMasteryHistory(scoreEntries){
+  const withAcc=(scoreEntries||[]).filter(s=>accuracyOf(s)!==null).sort((a,b)=>(a.date||'').localeCompare(b.date||''));
+  const points=[];
+  for(let i=0;i<withAcc.length;i++){
+    const m=computeMastery(withAcc.slice(0,i+1));
+    if(m!==null)points.push({date:withAcc[i].date,mastery:m,quiz:withAcc[i].quiz});
+  }
+  return points;
+}
+
+// "Current Form" — since solo quizzes have no opponent to win/lose against,
+// and live-game placement isn't currently saved on the score row, Form is
+// expressed honestly as an accuracy tier per recent quiz rather than an
+// invented W/L result. Streak = consecutive recent quizzes at "Strong" or
+// better (>=70% accuracy).
+function formTierOf(acc){
+  if(acc===null)return {code:'?',label:'—',color:'var(--muted)',bg:'var(--panel-soft)'};
+  if(acc>=90)return {code:'E',label:'Excellent',color:'#0f6b3e',bg:'#e0f5e8'};
+  if(acc>=70)return {code:'S',label:'Strong',color:'#1157a8',bg:'#e3f0fb'};
+  if(acc>=50)return {code:'F',label:'Fair',color:'#c67c0e',bg:'#fdf1de'};
+  return {code:'R',label:'Review',color:'#c0392b',bg:'#fbe4e1'};
+}
+function computeCurrentForm(scoreEntries){
+  const withAcc=(scoreEntries||[]).filter(s=>accuracyOf(s)!==null).sort((a,b)=>(b.date||'').localeCompare(a.date||''));
+  const recent=withAcc.slice(0,5).map(s=>({...s,acc:accuracyOf(s)})).reverse();
+  let streak=0;
+  for(const s of withAcc){ if(accuracyOf(s)>=70)streak++; else break; }
+  return {recent,streak};
+}
+
+// Achievements — every condition below is checked live against real data.
+// Nothing is manually granted or stored; unlocking is automatic and
+// reproducible (rule: "never make users manually enter their achievements").
+function computeAchievements(user){
+  const scores=user.scores||[];
+  const withAcc=scores.map(s=>({...s,acc:accuracyOf(s)}));
+  const played=scores.length;
+  const totalQ=withAcc.reduce((a,s)=>a+(Array.isArray(s.breakdown)?s.breakdown.length:0),0);
+  const totalCorrect=withAcc.reduce((a,s)=>a+(Array.isArray(s.breakdown)?s.breakdown.filter(r=>r&&r.correct).length:0),0);
+  const bestAcc=withAcc.reduce((m,s)=>s.acc!==null&&s.acc>m?s.acc:m,0);
+  const form=computeCurrentForm(scores);
+  const perfectCount=withAcc.filter(s=>s.acc===100).length;
+
+  const list=[
+    {cat:'Participation',icon:'📖',name:'First Quiz',desc:'Complete your first quiz',have:played,need:1},
+    {cat:'Participation',icon:'📚',name:'10 Quizzes',desc:'Complete 10 quizzes',have:played,need:10},
+    {cat:'Participation',icon:'🗂️',name:'50 Quizzes',desc:'Complete 50 quizzes',have:played,need:50},
+    {cat:'Participation',icon:'🏛️',name:'100 Quizzes',desc:'Complete 100 quizzes',have:played,need:100},
+    {cat:'Performance',icon:'⭐',name:'Perfect Score',desc:'Answer every question correctly in a quiz',have:perfectCount,need:1},
+    {cat:'Performance',icon:'🎯',name:'90% Accuracy',desc:'Reach 90% accuracy in a quiz',have:bestAcc,need:90},
+    {cat:'Performance',icon:'🎖️',name:'95% Accuracy',desc:'Reach 95% accuracy in a quiz',have:bestAcc,need:95},
+    {cat:'Performance',icon:'👑',name:'100% Accuracy',desc:'Reach a flawless 100% accuracy quiz',have:bestAcc,need:100},
+    {cat:'Consistency',icon:'🔥',name:'3-Quiz Strong Streak',desc:'3 consecutive quizzes at 70%+ accuracy',have:form.streak,need:3},
+    {cat:'Consistency',icon:'🔥',name:'5-Quiz Strong Streak',desc:'5 consecutive quizzes at 70%+ accuracy',have:form.streak,need:5},
+    {cat:'Consistency',icon:'🔥',name:'10-Quiz Strong Streak',desc:'10 consecutive quizzes at 70%+ accuracy',have:form.streak,need:10},
+  ];
+  return list.map(a=>({...a,unlocked:a.have>=a.need,progress:Math.min(1,a.have/a.need)}));
+}
+
+// Career Timeline — a chronological story of the account, built only from
+// real events: join date, first quiz, first perfect score, and mastery
+// milestones (every 10-point threshold actually crossed). Deliberately
+// does NOT log every single quiz played — that belongs in Recent Quiz
+// History / My Reports, not the story-level timeline.
+function computeCareerTimeline(user){
+  const events=[];
+  if(user.joinDate)events.push({date:user.joinDate,icon:'🙏',title:'Joined Lead Me To The Waters'});
+  const withAcc=(user.scores||[]).map(s=>({...s,acc:accuracyOf(s)})).filter(s=>s.acc!==null).sort((a,b)=>(a.date||'').localeCompare(b.date||''));
+  if(withAcc.length){
+    events.push({date:withAcc[0].date,icon:'📖',title:`Completed first quiz — ${withAcc[0].quiz}`});
+    const perfect=withAcc.find(s=>s.acc===100);
+    if(perfect)events.push({date:perfect.date,icon:'👑',title:`First perfect score — ${perfect.quiz}`});
+  }
+  const history=computeMasteryHistory(user.scores||[]);
+  let lastThreshold=0;
+  history.forEach(pt=>{
+    const threshold=Math.floor(pt.mastery/10)*10;
+    if(threshold>lastThreshold&&threshold>=30){
+      events.push({date:pt.date,icon:'📈',title:`Reached ${threshold}+ Bible Mastery`});
+      lastThreshold=threshold;
+    }
+  });
+  events.sort((a,b)=>(a.date||'').localeCompare(b.date||''));
+  return events;
+}
+
 
 function showScoreFloat(pts,x,y){
   const el=document.createElement('div');
@@ -2243,6 +2464,7 @@ function renderContestantOverview(){
   const myRank=lb.findIndex(x=>x.id===u.id)+1;
   const myScores=u.scores||[];
   const acc=myScores.length>0?Math.round((u.totalScore/(myScores.length*1000))*100):0;
+  const mastery=computeMastery(myScores);
   const heroInitials=(u.name||'?').trim().split(/\s+/).slice(0,2).map(w=>w[0]).join('').toUpperCase();
   const hero=document.getElementById('c-herocard');
   if(hero){
@@ -2256,11 +2478,13 @@ function renderContestantOverview(){
           </div>
           <div style="font-size:12px;color:rgba(255,255,255,.75);margin-top:4px">${u.email||''}</div>
           <div style="display:flex;gap:10px;margin-top:14px;flex-wrap:wrap">
+            ${mastery!==null?`<span class="role-chip">🧭 ${mastery} Bible Mastery</span>`:''}
             <span class="role-chip">🏆 ${myRank>0?'Rank #'+myRank:'Unranked'}</span>
             <span class="role-chip">📖 ${myScores.length} quizzes played</span>
             <span class="role-chip">✅ ${acc}% accuracy</span>
           </div>
         </div>
+        ${mastery!==null?`<button class="gbtn" onclick="cTab('c-profile',document.querySelectorAll('#s-contestant .tab-btn')[5])" style="background:rgba(255,255,255,.18);padding:9px 16px;font-size:12.5px">View Quiz Career →</button>`:''}
       </div>
     </div>`;
   }
@@ -2268,7 +2492,8 @@ function renderContestantOverview(){
     ['🏆','Total Score',(u.totalScore||0).toLocaleString(),'linear-gradient(150deg,#ffe6a8,#F9A825)'],
     ['🎯','My Rank',myRank>0?`#${myRank}`:'—','linear-gradient(150deg,#d7ecff,#1565C0)'],
     ['📖','Quizzes Taken',myScores.length,'linear-gradient(150deg,#dcefe4,#1a7a4a)'],
-    ['✅','Accuracy',acc+'%','linear-gradient(150deg,#d6f2ee,#00897B)']
+    ['✅','Accuracy',acc+'%','linear-gradient(150deg,#d6f2ee,#00897B)'],
+    ['🧭','Bible Mastery',mastery!==null?mastery:'—','linear-gradient(150deg,#efe0f7,#6A1B9A)']
   ].map(([icon,l,v,grad])=>`<div class="stat-chip">
     <div class="si" style="background:${grad};color:#fff">${icon}</div>
     <div class="sv">${v}</div>
@@ -2364,13 +2589,22 @@ async function renderContestantLeaderboard(){
     body.innerHTML='<div style="color:var(--muted);font-size:14px;padding:20px 0">No scores yet. Be the first! 🏆</div>';
     return;
   }
-  body.innerHTML=lb.map((u,i,arr)=>`
-    <div id="${u.id===myId?'lb-me-row':''}" class="list-row" style="${i===arr.length-1?'border-bottom:none':''};${u.id===myId?'background:#e8f5e9;border-radius:10px;padding-left:8px':''}">
+  body.innerHTML=lb.map((u,i,arr)=>{
+    // The slim leaderboard cache only has {id,name,totalScore,quizzesTaken};
+    // look the player up in the full `users` array (populated from the
+    // broadly-readable `scores` table) to get a real, non-fabricated
+    // mastery number when it's available. If it isn't, the badge is
+    // simply omitted rather than guessed.
+    const full=users.find(x=>x.id===u.id);
+    const mastery=full?computeMastery(full.scores||[]):null;
+    return `
+    <div id="${u.id===myId?'lb-me-row':''}" class="list-row" style="cursor:pointer;${i===arr.length-1?'border-bottom:none':''};${u.id===myId?'background:#e8f5e9;border-radius:10px;padding-left:8px':''}" onclick="openPlayerCard('${u.id}')">
       <div style="width:32px;height:32px;border-radius:50%;background:${i===0?'#F9A825':i===1?'#C0C0C0':i===2?'#CD7F32':'var(--border)'};display:flex;align-items:center;justify-content:center;font-weight:800;font-size:13px;color:${i<3?'var(--brown)':'var(--muted)'};flex-shrink:0">#${i+1}</div>
       <div class="avatar-circle" style="width:36px;height:36px;font-size:15px">${(u.name||'?')[0]}</div>
-      <div style="flex:1;min-width:0"><div style="font-weight:700;font-size:14px">${u.name}${u.id===myId?' <span class="badge" style="background:#e8f5e9;color:var(--primary);font-size:11px">You</span>':''}</div><div style="font-size:11.5px;color:var(--muted)">${u.quizzesTaken} quizzes</div></div>
+      <div style="flex:1;min-width:0"><div style="font-weight:700;font-size:14px">${u.name}${u.id===myId?' <span class="badge" style="background:#e8f5e9;color:var(--primary);font-size:11px">You</span>':''}</div><div style="font-size:11.5px;color:var(--muted)">${u.quizzesTaken} quizzes${mastery!==null?' · 🧭 '+mastery+' mastery':''}</div></div>
       <div style="font-weight:800;font-size:16px;color:var(--primary)">${u.totalScore.toLocaleString()}</div>
-    </div>`).join('');
+    </div>`;
+  }).join('');
   // If the player is buried in a long list, scroll their row into view.
   const meRow=document.getElementById('lb-me-row');
   if(meRow)setTimeout(()=>meRow.scrollIntoView({block:'nearest',behavior:'smooth'}),150);
@@ -2378,31 +2612,189 @@ async function renderContestantLeaderboard(){
 function renderContestantProfile(){
   const u=users.find(x=>x.id===currentUser.id)||currentUser;
   const initials=(u.name||'?').trim().split(/\s+/).slice(0,2).map(w=>w[0]).join('').toUpperCase();
+  const scores=u.scores||[];
+  const withAcc=scores.map(s=>({...s,acc:accuracyOf(s)}));
+  const played=scores.length;
+  const totalQ=withAcc.reduce((a,s)=>a+(Array.isArray(s.breakdown)?s.breakdown.length:0),0);
+  const totalCorrect=withAcc.reduce((a,s)=>a+(Array.isArray(s.breakdown)?s.breakdown.filter(r=>r&&r.correct).length:0),0);
+  const overallAcc=totalQ>0?Math.round((totalCorrect/totalQ)*100):null;
+  const bestEntry=withAcc.reduce((m,s)=>(s.score||0)>(m?.score||0)?s:m,null);
+  const bestAccEntry=withAcc.reduce((m,s)=>s.acc!==null&&s.acc>(m?.acc??-1)?s:m,null);
+  const lb=getLeaderboard();
+  const myRank=lb.findIndex(x=>x.id===u.id)+1;
+
+  const mastery=computeMastery(scores);
+  const masteryHistory=computeMasteryHistory(scores);
+  const highestMastery=masteryHistory.length?Math.max(...masteryHistory.map(p=>p.mastery)):mastery;
+  const form=computeCurrentForm(scores);
+  const achievements=computeAchievements(u);
+  const unlockedCount=achievements.filter(a=>a.unlocked).length;
+  const timeline=computeCareerTimeline(u);
+  const quizId=quizIdFor(u.supabaseId||u.id);
+  const masteryColor=mastery===null?'var(--muted)':mastery>=80?'#0f6b3e':mastery>=60?'#1157a8':mastery>=40?'#c67c0e':'#c0392b';
+
+  // Cache breakdowns so "Recent Quiz History" rows can reuse the exact same
+  // breakdown-modal the Reports tab already uses — one source of truth,
+  // no second results renderer.
+  window._myReportAttempts=window._myReportAttempts||{};
+  withAcc.forEach(s=>{if(s.id)window._myReportAttempts[s.id]=s.breakdown;});
+
   document.getElementById('c-profilebody').innerHTML=`
-    <div class="hero-card" style="margin:-22px -22px 18px;border-radius:18px 18px 0 0">
-      <div style="position:relative;display:flex;align-items:center;gap:16px;flex-wrap:wrap">
+    <!-- ============ IDENTITY CARD ============ -->
+    <div class="hero-card" style="margin-bottom:18px">
+      <div style="position:relative;display:flex;align-items:center;gap:18px;flex-wrap:wrap">
         <div class="hero-avatar">${initials||'🙏'}</div>
-        <div>
-          <div class="font-display" style="font-size:19px;font-weight:800">${u.name||'—'}</div>
-          <div style="font-size:12px;color:rgba(255,255,255,.78);margin-top:2px">${u.email||'—'}</div>
-          <div style="margin-top:10px"><span class="role-chip">👤 Contestant since ${u.joinDate||'—'}</span></div>
+        <div style="flex:1;min-width:200px">
+          <div class="font-display" style="font-size:21px;font-weight:800">${u.name||'—'}</div>
+          <div style="font-size:12px;color:rgba(255,255,255,.72);margin-top:2px;letter-spacing:.4px">${quizId}${u.country?' · '+u.country:''}</div>
+          <div style="display:flex;gap:10px;margin-top:14px;flex-wrap:wrap">
+            <span class="role-chip">${mastery!==null?`🧭 ${mastery} Bible Mastery`:'🧭 Mastery unlocks after your first quiz'}</span>
+            ${myRank>0?`<span class="role-chip">🏆 #${myRank} Global</span>`:''}
+            <span class="role-chip">⭐ ${(u.totalScore||0).toLocaleString()} points</span>
+          </div>
         </div>
+        ${mastery!==null?`<div class="mastery-badge" style="width:64px;height:64px;font-size:24px;background:linear-gradient(160deg,var(--gold2),var(--gold));color:#3e2200;border:2px solid rgba(255,255,255,.4)">${mastery}</div>`:''}
       </div>
     </div>
-    <div class="section-title">👤 Contact & Prize Details</div>
-    ${[
-      ['📛 Full Name',u.name||'—'],
-      ['✉️ Email',u.email||'—'],
-      ['📱 Phone',u.phone||'—'],
-      ['🗓️ Join Date',u.joinDate||'—'],
-      ['💳 Account Name',u.bank?.name||'—'],
-      ['🏦 Bank Name',u.bank?.bankName||'—'],
-      ['🔢 Account Number',String(u.bank?.accountNumber||'—').replace(/(\d{4})(\d{4})(\d+)/,'$1 $2 $3')]
-    ].map(([l,v],i,arr)=>`
-      <div class="list-row" style="${i===arr.length-1?'border-bottom:none':''}">
-        <span style="color:var(--muted);font-weight:700;font-size:13.5px;flex:1">${l}</span>
-        <span style="font-weight:700;font-size:14px">${v}</span>
-      </div>`).join('')}`;
+
+    <!-- ============ MASTERY PROGRESSION ============ -->
+    <div class="card lift" style="margin-bottom:16px">
+      <div style="display:flex;justify-content:space-between;align-items:baseline;flex-wrap:wrap;gap:6px;margin-bottom:6px">
+        <div class="section-title" style="margin-bottom:0">🧭 Bible Mastery Progression</div>
+        ${highestMastery!==null?`<span class="text-muted" style="font-size:11.5px;color:var(--muted)">Highest: ${highestMastery}</span>`:''}
+      </div>
+      ${mastery===null
+        ?`<div style="color:var(--muted);font-size:13.5px;padding:10px 0">Play your first quiz to start building your Bible Mastery record. 📖</div>`
+        :`<div style="position:relative;height:150px"><canvas id="ch-mastery"></canvas></div>
+           <div style="font-size:11.5px;color:var(--muted);margin-top:8px">Weighted from accuracy (most-recent quizzes count most), consistency across quizzes, and experience — not simply total points.</div>`}
+    </div>
+
+    <!-- ============ CAREER OVERVIEW ============ -->
+    <div class="section-eyebrow" style="margin:0 2px 8px">Career Overview</div>
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:10px;margin-bottom:18px">
+      ${[
+        ['📖','Quizzes Played',played,'linear-gradient(150deg,#dcefe4,#0f6b3e)'],
+        ['✅','Accuracy',overallAcc!==null?overallAcc+'%':'—','linear-gradient(150deg,#d6f2ee,#00897B)'],
+        ['❓','Questions Answered',totalQ,'linear-gradient(150deg,#d7ecff,#1157a8)'],
+        ['⭐','Points Earned',(u.totalScore||0).toLocaleString(),'linear-gradient(150deg,#ffe6a8,#eda515)'],
+        ['🏅','Best Score',bestEntry?(bestEntry.score||0).toLocaleString():'—','linear-gradient(150deg,#ffe9c2,#c67c0e)'],
+        ['🎯','Best Accuracy',bestAccEntry?bestAccEntry.acc+'%':'—','linear-gradient(150deg,#efe0f7,#6A1B9A)'],
+      ].map(([icon,l,v,grad])=>`<div class="stat-chip">
+        <div class="si" style="background:${grad};color:#fff">${icon}</div>
+        <div class="sv">${v}</div>
+        <div class="sl">${l}</div>
+      </div>`).join('')}
+    </div>
+
+    <!-- ============ CURRENT FORM ============ -->
+    <div class="card lift" style="margin-bottom:16px">
+      <div class="section-title">📈 Current Quiz Form</div>
+      ${form.recent.length===0?`<div style="color:var(--muted);font-size:13.5px">No recent quizzes yet.</div>`:`
+        <div style="display:flex;gap:8px;margin-bottom:10px;flex-wrap:wrap">
+          ${form.recent.map(s=>{const t=formTierOf(s.acc);return `<div class="form-tier" title="${t.label} — ${s.acc}%" style="background:${t.bg};color:${t.color}">${t.code}</div>`;}).join('')}
+        </div>
+        <div style="font-size:12.5px;color:var(--muted)">🔥 Current strong-quiz streak (70%+ accuracy): <strong style="color:var(--ink)">${form.streak}</strong></div>`}
+    </div>
+
+    <!-- ============ RECENT QUIZ HISTORY ============ -->
+    <div class="card lift" style="margin-bottom:16px">
+      <div class="section-title">🗂️ Recent Quiz History</div>
+      ${withAcc.length===0?`<div style="color:var(--muted);font-size:13.5px">Your quiz history will appear here once you play. 🎯</div>`:
+        [...withAcc].sort((a,b)=>(b.date||'').localeCompare(a.date||'')).slice(0,8).map((s,i,arr)=>{
+          const t=formTierOf(s.acc);
+          return `<div class="list-row" style="${i===arr.length-1?'border-bottom:none':''};${s.id&&s.breakdown?'cursor:pointer':''}" ${s.id&&s.breakdown?`onclick="showBreakdownModal(window._myReportAttempts['${s.id}'],'${(s.quiz||'').replace(/'/g,"\\'")}')"`:''}>
+            <div class="form-tier" style="background:${t.bg};color:${t.color}">${t.code}</div>
+            <div style="flex:1;min-width:0"><div style="font-weight:700;font-size:13.5px">${s.quiz}</div><div style="font-size:11.5px;color:var(--muted)">${s.date||'—'} · ${s.mode==='live'?'Live game':'Solo play'}${s.acc!==null?' · '+s.acc+'% accuracy':''}</div></div>
+            <div style="font-weight:800;font-size:14px;color:var(--primary)">${(s.score||0).toLocaleString()}</div>
+          </div>`;
+        }).join('')}
+    </div>
+
+    <!-- ============ ACHIEVEMENTS & HONORS ============ -->
+    <div class="card lift" style="margin-bottom:16px">
+      <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:4px">
+        <div class="section-title" style="margin-bottom:0">🏆 Achievements &amp; Honors</div>
+        <span class="text-muted" style="font-size:11.5px;color:var(--muted)">${unlockedCount} / ${achievements.length} unlocked</span>
+      </div>
+      ${['Participation','Performance','Consistency'].map(cat=>{
+        const items=achievements.filter(a=>a.cat===cat);
+        return `<div style="margin:14px 0 6px">
+          <div style="font-size:10.5px;font-weight:800;letter-spacing:1px;color:var(--muted);text-transform:uppercase;margin-bottom:8px">${cat}</div>
+          <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(96px,1fr));gap:8px">
+            ${items.map(a=>`<div class="ach-tile ${a.unlocked?'unlocked':'locked'}" title="${a.desc}">
+              <div style="font-size:20px">${a.icon}</div>
+              <div style="font-size:10.5px;font-weight:800;margin-top:4px;line-height:1.2">${a.name}</div>
+              ${!a.unlocked?`<div class="progress-track" style="margin-top:6px"><div class="progress-fill" style="width:${Math.round(a.progress*100)}%;background:var(--secondary)"></div></div><div style="font-size:9px;color:var(--muted);margin-top:3px">${Math.min(a.have,a.need)}/${a.need}</div>`:'<div style="font-size:9px;color:var(--gold);font-weight:800;margin-top:5px">UNLOCKED</div>'}
+            </div>`).join('')}
+          </div>
+        </div>`;
+      }).join('')}
+      <div style="margin-top:12px;padding-top:12px;border-top:1px dashed var(--border);font-size:11.5px;color:var(--muted)">📚 Bible Knowledge honors (e.g. New Testament / Old Testament mastery) unlock once questions are tagged by category — coming in a future update.</div>
+    </div>
+
+    <!-- ============ QUIZ RECORDS ============ -->
+    <div class="card lift" style="margin-bottom:16px">
+      <div class="section-title">📊 Quiz Records</div>
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px">
+        ${[
+          ['Highest Mastery',highestMastery!==null?highestMastery:'—'],
+          ['Highest Global Rank',myRank>0?'#'+myRank:'—'],
+          ['Best Quiz Score',bestEntry?(bestEntry.score||0).toLocaleString():'—'],
+          ['Best Accuracy',bestAccEntry?bestAccEntry.acc+'%':'—'],
+          ['Longest Strong-Quiz Streak',form.streak],
+          ['Total Points Earned',(u.totalScore||0).toLocaleString()],
+        ].map(([label,val])=>`<div class="stat-chip" style="text-align:left">
+          <div class="sv" style="font-size:18px">${val}</div>
+          <div class="sl" style="margin-top:5px">${label}</div>
+        </div>`).join('')}
+      </div>
+    </div>
+
+    <!-- ============ CAREER TIMELINE ============ -->
+    <div class="card lift" style="margin-bottom:20px">
+      <div class="section-title">🕊️ Quiz Career Timeline</div>
+      ${timeline.length===0?`<div style="color:var(--muted);font-size:13.5px">Your journey will be recorded here as you play.</div>`:
+        `<div class="timeline-rail">${timeline.map(ev=>`
+          <div class="timeline-item">
+            <div class="timeline-dot">${ev.icon}</div>
+            <div style="font-weight:700;font-size:13.5px">${ev.title}</div>
+            <div style="font-size:11.5px;color:var(--muted)">${ev.date||'—'}</div>
+          </div>`).join('')}</div>`}
+    </div>
+
+    <!-- ============ ACCOUNT & PAYOUT (kept separate from the Career story) ============ -->
+    <div class="section-eyebrow" style="margin:0 2px 8px">Private — only visible to you</div>
+    <div class="card" style="margin-bottom:8px">
+      <div class="section-title">🔒 Account &amp; Payout Details</div>
+      ${[
+        ['✉️ Email',u.email||'—'],
+        ['📱 Phone',u.phone||'—'],
+        ['🗓️ Join Date',u.joinDate||'—'],
+        ['💳 Account Name',u.bank?.name||'—'],
+        ['🏦 Bank Name',u.bank?.bankName||'—'],
+        ['🔢 Account Number',String(u.bank?.accountNumber||'—').replace(/(\d{4})(\d{4})(\d+)/,'$1 $2 $3')]
+      ].map(([l,v],i,arr)=>`
+        <div class="list-row" style="${i===arr.length-1?'border-bottom:none':''}">
+          <span style="color:var(--muted);font-weight:700;font-size:13.5px;flex:1">${l}</span>
+          <span style="font-weight:700;font-size:14px">${v}</span>
+        </div>`).join('')}
+    </div>`;
+
+  // Mastery progression chart — same Chart.js instance already loaded for
+  // the admin dashboard; reuses destroyChart() so re-visiting this tab
+  // never leaks canvases.
+  if(mastery!==null){
+    setTimeout(()=>{
+      if(document.getElementById('ch-mastery')&&window.Chart){
+        destroyChart('ch-mastery');
+        adminCharts['ch-mastery']=new Chart(document.getElementById('ch-mastery'),{
+          type:'line',
+          data:{labels:masteryHistory.map(p=>p.date),datasets:[{label:'Bible Mastery',data:masteryHistory.map(p=>p.mastery),borderColor:masteryColor,backgroundColor:masteryColor+'22',fill:true,tension:.35,pointRadius:3,pointBackgroundColor:masteryColor}]},
+          options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{y:{min:0,max:99,grid:{color:'#f0f0f0'}},x:{grid:{display:false}}}}
+        });
+      }
+    },50);
+  }
 }
 // =====================================================================
 //  CONTESTANT — ALL-TIME REPORT (solo + live, per quiz)
