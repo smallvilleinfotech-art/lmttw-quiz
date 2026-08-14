@@ -8,104 +8,30 @@
 <!-- Supabase CDN -->
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <style>
-@import url('https://fonts.googleapis.com/css2?family=Nunito:wght@400;500;600;700;800;900&family=Fredoka+One&family=Sora:wght@600;700;800&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&family=Fredoka+One&display=swap');
 *{box-sizing:border-box;margin:0;padding:0}
-body{font-family:'Nunito',system-ui,sans-serif;background:
-    radial-gradient(circle at 8% 0%, rgba(26,122,74,.10), transparent 42%),
-    radial-gradient(circle at 95% 12%, rgba(21,101,192,.08), transparent 45%),
-    linear-gradient(180deg,#f4faf6 0%,#eef7f1 45%,#f6f9ee 100%);
-  min-height:100vh;color:#16281c;-webkit-font-smoothing:antialiased;}
-.font-display{font-family:'Sora',sans-serif;}
+body{font-family:'Nunito',system-ui,sans-serif;background:linear-gradient(135deg,#e8f5e9 0%,#e3f2fd 50%,#f9fbe7 100%);min-height:100vh;color:#1a2e1a}
 :root{
-  --primary:#0f6b3e;--primaryDk:#0a4227;--primaryLt:#2ea865;
-  --secondary:#1157a8;--gold:#eda515;--gold2:#ffcf5c;--brown:#5D4037;
-  --teal:#00897B;--danger:#c0392b;--warning:#c67c0e;
-  --success:#1a7a4a;--muted:#5c7166;--border:#dbe8e0;--bg:#f0faf4;
-  --panel:#ffffff;--panel-soft:#f6faf7;--ink:#16281c;--ink-soft:#3d4f45;
-  --shadow-sm:0 2px 8px rgba(16,40,26,.06);
-  --shadow-md:0 8px 28px rgba(16,40,26,.09);
-  --shadow-lg:0 18px 48px rgba(16,40,26,.14);
-  --radius:18px;
+  --primary:#1a7a4a;--primaryDk:#0f5233;--primaryLt:#2ea865;
+  --secondary:#1565C0;--gold:#F9A825;--brown:#5D4037;
+  --teal:#00897B;--danger:#C62828;--warning:#F57F17;
+  --success:#2e7d32;--muted:#4a6a4a;--border:#c8e6c9;--bg:#f0faf4
 }
 input,select,textarea{font-family:inherit;outline:none}
 button{font-family:inherit;cursor:pointer}
 .screen{display:none}.screen.active{display:block}
-::selection{background:rgba(15,107,62,.18)}
-
-/* ===== CARD — elevated executive surface ===== */
-.card{background:var(--panel);border-radius:var(--radius);padding:22px;box-shadow:var(--shadow-sm);border:1px solid var(--border);position:relative;transition:box-shadow .25s ease,transform .25s ease}
-.card.lift:hover{box-shadow:var(--shadow-md);transform:translateY(-2px)}
-
-/* ===== Buttons ===== */
-.gbtn{border:none;border-radius:12px;color:#fff;font-weight:700;letter-spacing:.3px;transition:all .18s ease;cursor:pointer;box-shadow:0 2px 8px rgba(16,40,26,.12)}
-.gbtn:hover{filter:brightness(1.08);transform:translateY(-1px);box-shadow:0 6px 16px rgba(16,40,26,.18)}
+.card{background:#fff;border-radius:16px;padding:20px;box-shadow:0 4px 24px rgba(26,122,74,.08);border:1px solid var(--border)}
+.gbtn{border:none;border-radius:12px;color:#fff;font-weight:700;letter-spacing:.5px;transition:all .2s;cursor:pointer}
+.gbtn:hover{filter:brightness(1.1);transform:translateY(-1px)}
 .gbtn:active{transform:scale(.98)}
-
-/* ===== Badges / pills ===== */
-.badge{border-radius:20px;padding:4px 12px;font-size:12px;font-weight:800;letter-spacing:.2px;display:inline-flex;align-items:center;gap:5px}
-
-/* ===== Tab bar — refined segmented / pill navigation ===== */
-.tab-btn{border:none;padding:11px 18px;font-weight:700;font-size:13px;cursor:pointer;transition:all .2s ease;white-space:nowrap;border-bottom:3px solid transparent;position:relative}
-.tab-btn.active{background:rgba(255,255,255,.14);color:#fff;border-bottom-color:var(--gold)}
-.tab-btn:not(.active){background:transparent;color:rgba(255,255,255,.62)}
-.tab-btn:not(.active):hover{color:#fff;background:rgba(255,255,255,.06)}
-
-/* ===== Inputs ===== */
-input[type=text],input[type=email],input[type=password],input[type=number],input[type=tel],select{padding:11px 14px;border-radius:11px;border:1.5px solid var(--border);font-size:14px;width:100%;transition:border .2s,box-shadow .2s;background:#fcfdfc}
-input:focus,select:focus{border-color:var(--primary);box-shadow:0 0 0 4px rgba(15,107,62,.10)}
-
+.badge{border-radius:20px;padding:3px 10px;font-size:12px;font-weight:700}
+.tab-btn{border:none;padding:10px 18px;font-weight:700;font-size:13px;cursor:pointer;transition:all .2s;white-space:nowrap;border-bottom:3px solid transparent}
+.tab-btn.active{background:var(--primary);color:#fff;border-bottom-color:var(--gold)}
+.tab-btn:not(.active){background:transparent;color:rgba(255,255,255,.6)}
+input[type=text],input[type=email],input[type=password],input[type=number],input[type=tel],select{padding:10px 14px;border-radius:10px;border:1.5px solid var(--border);font-size:14px;width:100%;transition:border .2s}
+input:focus,select:focus{border-color:var(--primary)}
 .notif{position:fixed;top:20px;left:50%;transform:translateX(-50%);z-index:9999;padding:12px 28px;border-radius:30px;font-weight:700;font-size:14px;box-shadow:0 6px 30px rgba(0,0,0,.2);min-width:260px;text-align:center;color:#fff;pointer-events:none;opacity:0;transition:opacity .3s}
 .notif.show{opacity:1}
-
-/* ===== EXECUTIVE UI KIT (shared across admin + contestant) ===== */
-.hero-card{
-  background:linear-gradient(150deg,var(--primaryDk) 0%,var(--primary) 55%,#0c5a35 100%);
-  border-radius:22px;padding:26px 24px;color:#fff;position:relative;overflow:hidden;
-  box-shadow:0 16px 40px rgba(10,66,39,.28);border:1px solid rgba(255,255,255,.08);
-}
-.hero-card::before{content:'';position:absolute;inset:0;background:
-    radial-gradient(circle at 85% -10%, rgba(237,165,21,.25), transparent 55%),
-    radial-gradient(circle at -5% 110%, rgba(255,255,255,.08), transparent 45%);
-  pointer-events:none;}
-.hero-avatar{
-  width:74px;height:74px;border-radius:18px;background:linear-gradient(160deg,var(--gold2),var(--gold));
-  display:flex;align-items:center;justify-content:center;font-family:'Sora',sans-serif;font-weight:800;
-  font-size:26px;color:#3e2200;flex-shrink:0;box-shadow:0 6px 18px rgba(0,0,0,.25);border:2px solid rgba(255,255,255,.35);
-}
-.role-chip{background:rgba(255,255,255,.16);border:1px solid rgba(255,255,255,.28);color:#fff;border-radius:20px;
-  padding:4px 12px;font-size:11px;font-weight:800;letter-spacing:.5px;backdrop-filter:blur(6px);display:inline-flex;align-items:center;gap:6px}
-
-.stat-chip{background:var(--panel-soft);border:1px solid var(--border);border-radius:16px;padding:14px 12px;text-align:center;
-  transition:transform .2s ease,box-shadow .2s ease;}
-.stat-chip:hover{transform:translateY(-3px);box-shadow:var(--shadow-md)}
-.stat-chip .si{width:38px;height:38px;border-radius:11px;display:flex;align-items:center;justify-content:center;
-  font-size:17px;margin:0 auto 8px;box-shadow:0 4px 10px rgba(0,0,0,.10)}
-.stat-chip .sv{font-family:'Sora',sans-serif;font-weight:800;font-size:22px;line-height:1.1;color:var(--ink)}
-.stat-chip .sl{font-size:10.5px;color:var(--muted);font-weight:700;letter-spacing:.3px;margin-top:3px;text-transform:uppercase}
-
-.avatar-circle{border-radius:50%;display:flex;align-items:center;justify-content:center;font-weight:800;flex-shrink:0;
-  background:linear-gradient(150deg,#e3f3e8,#d3ede0);color:var(--primary);box-shadow:inset 0 0 0 2px rgba(15,107,62,.12)}
-
-.section-title{font-family:'Sora',sans-serif;font-weight:700;font-size:15px;color:var(--primaryDk);margin-bottom:14px;
-  display:flex;align-items:center;gap:8px;letter-spacing:.1px}
-.section-eyebrow{font-size:10.5px;font-weight:800;letter-spacing:1.6px;text-transform:uppercase;color:var(--muted);margin-bottom:4px}
-
-.list-row{display:flex;align-items:center;gap:12px;padding:13px 6px;border-bottom:1px solid var(--border);transition:background .15s}
-.list-row:last-child{border-bottom:none}
-.list-row:hover{background:var(--panel-soft);border-radius:10px}
-
-.pill-status{display:inline-flex;align-items:center;gap:6px;border-radius:20px;padding:4px 12px;font-size:11.5px;font-weight:800}
-.pill-status .dot{width:6px;height:6px;border-radius:50%;background:currentColor}
-
-.exec-table{width:100%;border-collapse:separate;border-spacing:0;font-size:13px}
-.exec-table thead th{position:sticky;top:0;background:var(--panel-soft);padding:12px 10px;text-align:left;font-weight:800;
-  color:var(--primaryDk);font-size:11.5px;letter-spacing:.4px;text-transform:uppercase;border-bottom:2px solid var(--border);z-index:1}
-.exec-table tbody td{padding:12px 10px;border-bottom:1px solid var(--border)}
-.exec-table tbody tr{transition:background .15s}
-.exec-table tbody tr:hover{background:var(--panel-soft)}
-
-.side-nav-wrap{background:linear-gradient(135deg,var(--primaryDk),#0a3d24);}
-.top-bar{backdrop-filter:blur(10px)}
 .opt-btn{border:none;border-radius:18px;padding:clamp(18px,4vh,30px) 20px;color:#fff;font-size:clamp(16px,3vw,22px);font-weight:800;cursor:pointer;text-align:left;display:flex;align-items:center;gap:14px;transition:all .3s;width:100%;height:100%;min-height:clamp(90px,22vh,180px);box-shadow:0 4px 14px rgba(0,0,0,.18)}
 .opt-btn:hover:not(:disabled){transform:scale(1.02);box-shadow:0 8px 22px rgba(0,0,0,.28)}
 .opt-btn:hover:not(:disabled){filter:brightness(1.12);transform:scale(1.02)}
@@ -259,14 +185,14 @@ html,body{overflow-x:hidden;max-width:100vw}
 
 <!-- ==================== LANDING ==================== -->
 <div class="screen" id="s-landing">
-  <div style="max-width:460px;margin:0 auto;padding:48px 20px;text-align:center">
-    <div style="font-size:60px;margin-bottom:8px;filter:drop-shadow(0 4px 10px rgba(15,107,62,.25))">💧</div>
-    <div class="font-display" style="font-size:32px;font-weight:800;color:var(--primaryDk);line-height:1.15">LEAD ME TO</div>
-    <div class="font-display" style="font-size:32px;font-weight:800;color:var(--secondary);line-height:1.15">THE WATERS</div>
-    <div style="font-size:11.5px;color:var(--muted);letter-spacing:3px;text-transform:uppercase;font-weight:700;margin-top:6px;margin-bottom:26px">A Bible Community Quiz Platform</div>
+  <div style="max-width:460px;margin:0 auto;padding:40px 20px;text-align:center">
+    <div style="font-size:64px;margin-bottom:10px">💧</div>
+    <div style="font-family:'Fredoka One',cursive;font-size:34px;color:var(--primary);line-height:1.1">LEAD ME TO</div>
+    <div style="font-family:'Fredoka One',cursive;font-size:34px;color:var(--secondary);line-height:1.1">THE WATERS</div>
+    <div style="font-size:12px;color:var(--muted);letter-spacing:3px;text-transform:uppercase;margin-top:4px;margin-bottom:20px">A Bible Community Quiz Platform</div>
 
     <!-- PIN JOIN BOX -->
-    <div class="card" style="margin-bottom:14px;background:linear-gradient(135deg,#0f5233,#1565C0);border:none;box-shadow:var(--shadow-lg)">
+    <div class="card" style="margin-bottom:14px;background:linear-gradient(135deg,#0f5233,#1565C0);border:none">
       <div style="font-weight:800;font-size:15px;color:#fff;margin-bottom:10px">🎮 Have a Game PIN?</div>
       <div style="display:flex;gap:8px">
         <input type="text" id="pin-input" placeholder="Enter PIN..." maxlength="6"
@@ -510,21 +436,21 @@ html,body{overflow-x:hidden;max-width:100vw}
 
 <!-- ==================== CONTESTANT DASHBOARD ==================== -->
 <div class="screen" id="s-contestant">
-  <div class="top-bar" style="background:linear-gradient(120deg,var(--primaryDk),var(--primary) 65%,#0c5a35);padding:14px 22px;display:flex;align-items:center;justify-content:space-between;box-shadow:0 4px 18px rgba(10,66,39,.22);position:relative;z-index:5">
-    <div style="display:flex;align-items:center;gap:10px">
-      <span style="font-size:26px;filter:drop-shadow(0 2px 4px rgba(0,0,0,.25))">💧</span>
+  <div style="background:linear-gradient(135deg,var(--primary),var(--primaryDk));padding:14px 20px;display:flex;align-items:center;justify-content:space-between">
+    <div style="display:flex;align-items:center;gap:8px">
+      <span style="font-size:24px">💧</span>
       <div>
-        <div class="font-display" style="font-size:14px;color:#fff;font-weight:800;letter-spacing:.2px">LEAD ME TO THE WATERS</div>
-        <div style="font-size:9.5px;color:#bfe3cd;letter-spacing:2.4px;font-weight:700">BIBLE COMMUNITY</div>
+        <div style="font-family:'Fredoka One',cursive;font-size:14px;color:#fff">LEAD ME TO THE WATERS</div>
+        <div style="font-size:10px;color:#a5d6a7;letter-spacing:2px">BIBLE COMMUNITY</div>
       </div>
     </div>
     <div style="display:flex;align-items:center;gap:10px">
-      <span class="role-chip">👤 <span id="c-username"></span></span>
-      <a href="player-walkthrough.html" target="_blank" rel="noopener" class="gbtn" style="padding:8px 14px;font-size:12px;background:rgba(255,255,255,.16);text-decoration:none;color:#fff">📘 Guide</a>
-      <button class="gbtn" onclick="doLogout()" style="padding:8px 14px;font-size:12px;background:rgba(255,255,255,.16)">Logout</button>
+      <div id="c-username" style="color:#fff;font-weight:700;font-size:13px"></div>
+      <a href="player-walkthrough.html" target="_blank" rel="noopener" class="gbtn" style="padding:7px 14px;font-size:12px;background:rgba(255,255,255,.2);text-decoration:none;color:#fff">📘 Guide</a>
+      <button class="gbtn" onclick="doLogout()" style="padding:7px 14px;font-size:12px;background:rgba(255,255,255,.2)">Logout</button>
     </div>
   </div>
-  <div class="side-nav-wrap" style="display:flex;overflow-x:auto;gap:2px;padding:0 10px;box-shadow:inset 0 -1px 0 rgba(255,255,255,.06)">
+  <div style="background:var(--primaryDk);display:flex;overflow-x:auto;gap:0">
     <button class="tab-btn active" onclick="cTab('c-overview',this)">🏠 Overview</button>
     <button class="tab-btn" onclick="cTab('c-joinlive',this)">🎮 Join Live</button>
     <button class="tab-btn" onclick="cTab('c-quizzes',this)">🎯 Quizzes</button>
@@ -532,16 +458,14 @@ html,body{overflow-x:hidden;max-width:100vw}
     <button class="tab-btn" onclick="cTab('c-reports',this)">📊 My Reports</button>
     <button class="tab-btn" onclick="cTab('c-profile',this)">👤 Profile</button>
   </div>
-  <div style="max-width:960px;margin:0 auto;padding:18px 16px 40px">
+  <div style="max-width:900px;margin:0 auto;padding:16px">
     <div id="c-overview">
-      <div id="c-herocard"></div>
-      <div class="section-eyebrow" style="margin:20px 2px 8px">Your Numbers</div>
-      <div id="c-stats" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:12px;margin-bottom:18px"></div>
-      <div class="card lift" style="margin-bottom:16px">
-        <div class="section-title">📊 Performance Overview</div>
+      <div id="c-stats" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:12px;margin-bottom:16px"></div>
+      <div class="card" style="margin-bottom:14px">
+        <div style="font-weight:700;font-size:15px;color:var(--primary);margin-bottom:12px">📊 Performance Overview</div>
         <div id="c-speedos" style="display:flex;justify-content:space-around;flex-wrap:wrap;gap:16px"></div>
       </div>
-      <div class="card lift" id="c-recentscores"></div>
+      <div class="card" id="c-recentscores"></div>
     </div>
     <div id="c-joinlive" style="display:none">
       <div class="card" style="background:linear-gradient(135deg,var(--secondary),var(--teal));text-align:center;padding:32px 20px">
@@ -574,21 +498,21 @@ html,body{overflow-x:hidden;max-width:100vw}
 
 <!-- ==================== ADMIN PANEL ==================== -->
 <div class="screen" id="s-admin">
-  <div class="top-bar" style="background:linear-gradient(120deg,#0a3d2b,#0f5233 65%,#0c5a35);padding:14px 22px;display:flex;align-items:center;justify-content:space-between;box-shadow:0 4px 18px rgba(10,66,39,.22);position:relative;z-index:5">
-    <div style="display:flex;align-items:center;gap:10px">
-      <span style="font-size:26px;filter:drop-shadow(0 2px 4px rgba(0,0,0,.25))">💧</span>
+  <div style="background:linear-gradient(135deg,#0a3d2b,#0f5233);padding:14px 20px;display:flex;align-items:center;justify-content:space-between">
+    <div style="display:flex;align-items:center;gap:8px">
+      <span style="font-size:26px">💧</span>
       <div>
-        <div class="font-display" style="font-size:14px;color:#fff;font-weight:800;letter-spacing:.2px">LEAD ME TO THE WATERS</div>
-        <div style="font-size:9.5px;color:#bfe3cd;letter-spacing:2.4px;font-weight:700">ADMIN CONTROL PANEL</div>
+        <div style="font-family:'Fredoka One',cursive;font-size:14px;color:#fff">LEAD ME TO THE WATERS</div>
+        <div style="font-size:10px;color:#a5d6a7;letter-spacing:2px">ADMIN CONTROL PANEL</div>
       </div>
     </div>
     <div style="display:flex;gap:10px;align-items:center">
-      <span class="role-chip" style="background:linear-gradient(135deg,var(--gold2),var(--gold));color:#3e2200;border-color:transparent">⚙️ Admin</span>
-      <a href="admin-walkthrough.html" target="_blank" rel="noopener" class="gbtn" style="padding:8px 14px;font-size:12px;background:rgba(255,255,255,.16);text-decoration:none;color:#fff">📘 Guide</a>
-      <button class="gbtn" onclick="doLogout()" style="padding:8px 14px;font-size:12px;background:rgba(255,255,255,.16)">Logout</button>
+      <span style="background:#F9A825;color:#5D4037;border-radius:20px;padding:4px 12px;font-size:12px;font-weight:700">⚙️ Admin</span>
+      <a href="admin-walkthrough.html" target="_blank" rel="noopener" class="gbtn" style="padding:7px 14px;font-size:12px;background:rgba(255,255,255,.2);text-decoration:none;color:#fff">📘 Guide</a>
+      <button class="gbtn" onclick="doLogout()" style="padding:7px 14px;font-size:12px;background:rgba(255,255,255,.2)">Logout</button>
     </div>
   </div>
-  <div class="side-nav-wrap" style="display:flex;overflow-x:auto;gap:2px;padding:0 10px;box-shadow:inset 0 -1px 0 rgba(255,255,255,.06)">
+  <div style="background:#0f5233;display:flex;overflow-x:auto">
     <button class="tab-btn active" onclick="aTab('a-dashboard',this)">🏠 Dashboard</button>
     <button class="tab-btn" onclick="aTab('a-users',this)">👥 Users</button>
     <button class="tab-btn" onclick="aTab('a-quizzes',this)">🎯 Quizzes</button>
@@ -597,7 +521,7 @@ html,body{overflow-x:hidden;max-width:100vw}
     <button class="tab-btn" onclick="aTab('a-reports',this)">📊 Reports</button>
     <button class="tab-btn" onclick="aTab('a-bank',this)">💳 Bank Export</button>
   </div>
-  <div style="max-width:1160px;margin:0 auto;padding:18px 16px 40px">
+  <div style="max-width:1100px;margin:0 auto;padding:16px">
     <div id="a-dashboard"></div>
     <div id="a-users" style="display:none"></div>
     <div id="a-quizzes" style="display:none"></div>
@@ -2243,36 +2167,14 @@ function renderContestantOverview(){
   const myRank=lb.findIndex(x=>x.id===u.id)+1;
   const myScores=u.scores||[];
   const acc=myScores.length>0?Math.round((u.totalScore/(myScores.length*1000))*100):0;
-  const heroInitials=(u.name||'?').trim().split(/\s+/).slice(0,2).map(w=>w[0]).join('').toUpperCase();
-  const hero=document.getElementById('c-herocard');
-  if(hero){
-    hero.innerHTML=`<div class="hero-card">
-      <div style="position:relative;display:flex;align-items:center;gap:18px;flex-wrap:wrap">
-        <div class="hero-avatar">${heroInitials||'🙏'}</div>
-        <div style="flex:1;min-width:180px">
-          <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
-            <span class="font-display" style="font-size:20px;font-weight:800">${u.name||'Contestant'}</span>
-            ${u.status==='approved'?'<span class="role-chip">✅ Approved</span>':'<span class="role-chip">⏳ Pending</span>'}
-          </div>
-          <div style="font-size:12px;color:rgba(255,255,255,.75);margin-top:4px">${u.email||''}</div>
-          <div style="display:flex;gap:10px;margin-top:14px;flex-wrap:wrap">
-            <span class="role-chip">🏆 ${myRank>0?'Rank #'+myRank:'Unranked'}</span>
-            <span class="role-chip">📖 ${myScores.length} quizzes played</span>
-            <span class="role-chip">✅ ${acc}% accuracy</span>
-          </div>
-        </div>
-      </div>
-    </div>`;
-  }
   document.getElementById('c-stats').innerHTML=[
-    ['🏆','Total Score',(u.totalScore||0).toLocaleString(),'linear-gradient(150deg,#ffe6a8,#F9A825)'],
-    ['🎯','My Rank',myRank>0?`#${myRank}`:'—','linear-gradient(150deg,#d7ecff,#1565C0)'],
-    ['📖','Quizzes Taken',myScores.length,'linear-gradient(150deg,#dcefe4,#1a7a4a)'],
-    ['✅','Accuracy',acc+'%','linear-gradient(150deg,#d6f2ee,#00897B)']
-  ].map(([icon,l,v,grad])=>`<div class="stat-chip">
-    <div class="si" style="background:${grad};color:#fff">${icon}</div>
-    <div class="sv">${v}</div>
-    <div class="sl">${l}</div>
+    ['🏆 Total Score',(u.totalScore||0).toLocaleString(),'#F9A825'],
+    ['🎯 My Rank',myRank>0?`#${myRank}`:'—','var(--primary)'],
+    ['📖 Quizzes Taken',myScores.length,'var(--secondary)'],
+    ['✅ Accuracy',acc+'%','var(--teal)']
+  ].map(([l,v,c])=>`<div class="card" style="text-align:center;border-top:4px solid ${c}">
+    <div style="font-size:12px;color:var(--muted);font-weight:600">${l}</div>
+    <div style="font-size:26px;font-weight:800;color:${c}">${v}</div>
   </div>`).join('');
   document.getElementById('c-speedos').innerHTML=
     makeSpeedo(acc,100,'Accuracy','var(--primary)')+
@@ -2280,11 +2182,10 @@ function renderContestantOverview(){
     makeSpeedo(myScores.length,Math.max(5,quizzes.length),'Participation','#F9A825');
   const rs=document.getElementById('c-recentscores');
   if(myScores.length===0){rs.innerHTML='<div style="color:var(--muted);font-size:14px">No quiz scores yet. Play a quiz to get started! 🎯</div>';return;}
-  rs.innerHTML=`<div class="section-title">📈 Recent Scores</div>`+
+  rs.innerHTML=`<div style="font-weight:700;font-size:15px;color:var(--primary);margin-bottom:12px">📈 Recent Scores</div>`+
     myScores.slice(-5).reverse().map((s,i,arr)=>`
-      <div class="list-row" style="${i===arr.length-1?'border-bottom:none':''}">
-        <div class="avatar-circle" style="width:34px;height:34px;font-size:13px">${(s.quiz||'?')[0]}</div>
-        <div style="flex:1;min-width:0"><div style="font-weight:700;font-size:14px">${s.quiz}</div><div style="font-size:11.5px;color:var(--muted)">${s.date}</div></div>
+      <div style="display:flex;justify-content:space-between;align-items:center;padding:10px 0;${i<arr.length-1?'border-bottom:1px solid var(--border)':''}">
+        <div><div style="font-weight:600;font-size:14px">${s.quiz}</div><div style="font-size:12px;color:var(--muted)">${s.date}</div></div>
         <span class="badge" style="background:${s.score>800?'#e8f5e9':'#e3f2fd'};color:${s.score>800?'var(--primary)':'var(--secondary)'}">${s.score.toLocaleString()} pts</span>
       </div>`).join('');
 }
@@ -2293,16 +2194,13 @@ function renderContestantQuizzes(){
   document.getElementById('c-quizlist').innerHTML=liveQuizzes.length===0
     ?'<div class="card" style="color:var(--muted)">No quizzes available yet. Check back soon! 🎯</div>'
     :liveQuizzes.map(q=>`
-    <div class="card lift" style="margin-bottom:12px">
-      <div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:12px">
-        <div style="display:flex;gap:12px;align-items:flex-start">
-          <div class="avatar-circle" style="width:44px;height:44px;font-size:18px;border-radius:14px;background:${q.type==='devotional'?'linear-gradient(150deg,#d6f2ee,#00897B)':'linear-gradient(150deg,#efe0f7,#6A1B9A)'};color:#fff">${q.type==='devotional'?'📖':'🎯'}</div>
-          <div>
-            <div style="font-weight:800;font-size:16px">${q.name}</div>
-            <div style="font-size:12.5px;color:var(--muted);margin-top:3px">${q.questions.length} questions · ${q.type==='devotional'?'Daily Devotional':'Major Quiz'} · ${q.date}</div>
-          </div>
+    <div class="card" style="margin-bottom:12px">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:10px">
+        <div>
+          <div style="font-weight:700;font-size:16px">${q.name}</div>
+          <div style="font-size:13px;color:var(--muted);margin-top:3px">${q.questions.length} questions · ${q.type==='devotional'?'Daily Devotional':'Major Quiz'} · ${q.date}</div>
         </div>
-        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+        <div style="display:flex;gap:8px;align-items:center">
           <span class="badge" style="background:${q.type==='devotional'?'#e0f2f1':'#f3e5f5'};color:${q.type==='devotional'?'var(--teal)':'#6A1B9A'}">${q.type}</span>
           <button class="gbtn" onclick="toggleQuizLeaderboard('${q.id}')" style="padding:8px 14px;font-size:13px;background:var(--secondary)">🏆 Leaderboard</button>
           <button class="gbtn" onclick="startQuiz('${q.id}')" style="padding:8px 18px;font-size:13px;background:linear-gradient(135deg,var(--primary),var(--primaryDk))">▶ Play Solo</button>
@@ -2322,14 +2220,14 @@ function toggleQuizLeaderboard(quizId){
   const qz=quizzes.find(q=>q.id===quizId);
   const lb=getQuizLeaderboard(quizId);
   panel.style.display='block';
-  panel.innerHTML=`<div class="card lift">
-    <div class="section-title" style="margin-bottom:2px">🏆 ${qz?qz.name:'Quiz'} — Top Scores</div>
+  panel.innerHTML=`<div class="card">
+    <div style="font-weight:700;font-size:16px;color:var(--primary);margin-bottom:4px">🏆 ${qz?qz.name:'Quiz'} — Top Scores</div>
     <div style="font-size:12px;color:var(--muted);margin-bottom:14px">Ranked by best score on this quiz</div>
     ${lb.length===0?'<div style="color:var(--muted);font-size:14px">No scores yet for this quiz. Be the first! 🎯</div>':
-      lb.slice(0,50).map((u,i,arr)=>`
-      <div class="list-row" style="${i===Math.min(arr.length,50)-1?'border-bottom:none':''};${u.id===currentUser.id?'background:#e8f5e9;border-radius:10px;padding-left:8px':''}">
+      lb.slice(0,50).map((u,i)=>`
+      <div style="display:flex;align-items:center;gap:12px;padding:10px 0;${i<Math.min(lb.length,50)-1?'border-bottom:1px solid var(--border)':''};${u.id===currentUser.id?'background:#e8f5e9;border-radius:8px;padding-left:8px':''}">
         <div style="width:30px;height:30px;border-radius:50%;background:${i===0?'#F9A825':i===1?'#C0C0C0':i===2?'#CD7F32':'var(--border)'};display:flex;align-items:center;justify-content:center;font-weight:800;font-size:13px;color:${i<3?'var(--brown)':'var(--muted)'}">#${i+1}</div>
-        <div style="flex:1"><div style="font-weight:700;font-size:14px">${u.name}${u.id===currentUser.id?' <span class="badge" style="background:#e8f5e9;color:var(--primary);font-size:11px">You</span>':''}</div></div>
+        <div style="flex:1"><div style="font-weight:600;font-size:14px">${u.name}${u.id===currentUser.id?' <span class="badge" style="background:#e8f5e9;color:var(--primary);font-size:11px">You</span>':''}</div></div>
         <div style="font-weight:800;font-size:15px;color:var(--primary)">${u.score.toLocaleString()}</div>
       </div>`).join('')}
   </div>`;
@@ -2364,11 +2262,11 @@ async function renderContestantLeaderboard(){
     body.innerHTML='<div style="color:var(--muted);font-size:14px;padding:20px 0">No scores yet. Be the first! 🏆</div>';
     return;
   }
-  body.innerHTML=lb.map((u,i,arr)=>`
-    <div id="${u.id===myId?'lb-me-row':''}" class="list-row" style="${i===arr.length-1?'border-bottom:none':''};${u.id===myId?'background:#e8f5e9;border-radius:10px;padding-left:8px':''}">
-      <div style="width:32px;height:32px;border-radius:50%;background:${i===0?'#F9A825':i===1?'#C0C0C0':i===2?'#CD7F32':'var(--border)'};display:flex;align-items:center;justify-content:center;font-weight:800;font-size:13px;color:${i<3?'var(--brown)':'var(--muted)'};flex-shrink:0">#${i+1}</div>
-      <div class="avatar-circle" style="width:36px;height:36px;font-size:15px">${(u.name||'?')[0]}</div>
-      <div style="flex:1;min-width:0"><div style="font-weight:700;font-size:14px">${u.name}${u.id===myId?' <span class="badge" style="background:#e8f5e9;color:var(--primary);font-size:11px">You</span>':''}</div><div style="font-size:11.5px;color:var(--muted)">${u.quizzesTaken} quizzes</div></div>
+  body.innerHTML=lb.map((u,i)=>`
+    <div id="${u.id===myId?'lb-me-row':''}" style="display:flex;align-items:center;gap:12px;padding:12px 0;${i<lb.length-1?'border-bottom:1px solid var(--border)':''};${u.id===myId?'background:#e8f5e9;border-radius:8px;padding-left:8px':''}">
+      <div style="width:32px;height:32px;border-radius:50%;background:${i===0?'#F9A825':i===1?'#C0C0C0':i===2?'#CD7F32':'var(--border)'};display:flex;align-items:center;justify-content:center;font-weight:800;font-size:13px;color:${i<3?'var(--brown)':'var(--muted)'};">#${i+1}</div>
+      <div style="width:36px;height:36px;border-radius:50%;background:#e8f5e9;display:flex;align-items:center;justify-content:center;font-weight:700;color:var(--primary);font-size:15px">${(u.name||'?')[0]}</div>
+      <div style="flex:1"><div style="font-weight:600;font-size:14px">${u.name}${u.id===myId?' <span class="badge" style="background:#e8f5e9;color:var(--primary);font-size:11px">You</span>':''}</div><div style="font-size:12px;color:var(--muted)">${u.quizzesTaken} quizzes</div></div>
       <div style="font-weight:800;font-size:16px;color:var(--primary)">${u.totalScore.toLocaleString()}</div>
     </div>`).join('');
   // If the player is buried in a long list, scroll their row into view.
@@ -2377,32 +2275,20 @@ async function renderContestantLeaderboard(){
 }
 function renderContestantProfile(){
   const u=users.find(x=>x.id===currentUser.id)||currentUser;
-  const initials=(u.name||'?').trim().split(/\s+/).slice(0,2).map(w=>w[0]).join('').toUpperCase();
-  document.getElementById('c-profilebody').innerHTML=`
-    <div class="hero-card" style="margin:-22px -22px 18px;border-radius:18px 18px 0 0">
-      <div style="position:relative;display:flex;align-items:center;gap:16px;flex-wrap:wrap">
-        <div class="hero-avatar">${initials||'🙏'}</div>
-        <div>
-          <div class="font-display" style="font-size:19px;font-weight:800">${u.name||'—'}</div>
-          <div style="font-size:12px;color:rgba(255,255,255,.78);margin-top:2px">${u.email||'—'}</div>
-          <div style="margin-top:10px"><span class="role-chip">👤 Contestant since ${u.joinDate||'—'}</span></div>
-        </div>
-      </div>
-    </div>
-    <div class="section-title">👤 Contact & Prize Details</div>
-    ${[
-      ['📛 Full Name',u.name||'—'],
-      ['✉️ Email',u.email||'—'],
-      ['📱 Phone',u.phone||'—'],
-      ['🗓️ Join Date',u.joinDate||'—'],
-      ['💳 Account Name',u.bank?.name||'—'],
-      ['🏦 Bank Name',u.bank?.bankName||'—'],
-      ['🔢 Account Number',String(u.bank?.accountNumber||'—').replace(/(\d{4})(\d{4})(\d+)/,'$1 $2 $3')]
+  document.getElementById('c-profilebody').innerHTML=`<div style="font-weight:700;font-size:17px;color:var(--primary);margin-bottom:14px">👤 My Profile</div>`+
+    [
+      ['Full Name',u.name||'—'],
+      ['Email',u.email||'—'],
+      ['Phone',u.phone||'—'],
+      ['Join Date',u.joinDate||'—'],
+      ['Account Name',u.bank?.name||'—'],
+      ['Bank Name',u.bank?.bankName||'—'],
+      ['Account Number',String(u.bank?.accountNumber||'—').replace(/(\d{4})(\d{4})(\d+)/,'$1 $2 $3')]
     ].map(([l,v],i,arr)=>`
-      <div class="list-row" style="${i===arr.length-1?'border-bottom:none':''}">
-        <span style="color:var(--muted);font-weight:700;font-size:13.5px;flex:1">${l}</span>
+      <div style="display:flex;justify-content:space-between;padding:10px 0;${i<arr.length-1?'border-bottom:1px solid var(--border)':''}">
+        <span style="color:var(--muted);font-weight:600;font-size:14px">${l}</span>
         <span style="font-weight:700;font-size:14px">${v}</span>
-      </div>`).join('')}`;
+      </div>`).join('');
 }
 // =====================================================================
 //  CONTESTANT — ALL-TIME REPORT (solo + live, per quiz)
@@ -3027,59 +2913,41 @@ function renderAdminDashboard(){
   const lb=getLeaderboard(),app=getApproved(),pend=getPending(),flag=getFlagged(),all=users.filter(u=>u.role==='contestant');
   const avg=app.length>0?Math.round(app.reduce((s,u)=>s+(u.totalScore||0),0)/app.length):0;
   document.getElementById('a-dashboard').innerHTML=`
-    <div class="hero-card" style="margin-bottom:20px">
-      <div style="position:relative;display:flex;align-items:center;gap:18px;flex-wrap:wrap">
-        <div class="hero-avatar">⚙️</div>
-        <div style="flex:1;min-width:200px">
-          <div class="font-display" style="font-size:19px;font-weight:800">Control Center</div>
-          <div style="font-size:12.5px;color:rgba(255,255,255,.78);margin-top:3px">Live snapshot of contestants, quizzes and platform health</div>
-          <div style="display:flex;gap:10px;margin-top:14px;flex-wrap:wrap">
-            <span class="role-chip">👥 ${all.length} contestants</span>
-            <span class="role-chip">📖 ${quizzes.length} quizzes</span>
-            <span class="role-chip">⭐ ${avg.toLocaleString()} avg score</span>
-          </div>
-        </div>
-      </div>
-    </div>
-    <div class="section-eyebrow" style="margin:0 2px 8px">Key Metrics</div>
-    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:12px;margin-bottom:20px">
-      ${[['👥','Contestants',all.length,'linear-gradient(150deg,#dcefe4,#0f6b3e)'],['✅','Approved',app.length,'linear-gradient(150deg,#dcefe4,#1a7a4a)'],['⏳','Pending',pend.length,'linear-gradient(150deg,#ffe9c2,#c67c0e)'],['⚠️','Flagged',flag.length,'linear-gradient(150deg,#fbdcd6,#c0392b)'],['📖','Quizzes',quizzes.length,'linear-gradient(150deg,#d7ecff,#1157a8)'],['⭐','Avg Score',avg.toLocaleString(),'linear-gradient(150deg,#ffe6a8,#eda515)']].map(([icon,l,v,grad])=>`
-        <div class="stat-chip">
-          <div class="si" style="background:${grad};color:#fff">${icon}</div>
-          <div class="sv">${v}</div>
-          <div class="sl">${l}</div>
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:12px;margin-bottom:18px">
+      ${[['👥 Contestants',all.length,'var(--primary)'],['✅ Approved',app.length,'var(--success)'],['⏳ Pending',pend.length,'var(--warning)'],['⚠️ Flagged',flag.length,'var(--danger)'],['📖 Quizzes',quizzes.length,'var(--secondary)'],['⭐ Avg Score',avg.toLocaleString(),'#F9A825']].map(([l,v,c])=>`
+        <div class="card" style="text-align:center;border-top:4px solid ${c}">
+          <div style="font-size:12px;color:var(--muted);font-weight:600">${l}</div>
+          <div style="font-size:28px;font-weight:800;color:${c}">${v}</div>
         </div>`).join('')}
     </div>
-    <div class="section-eyebrow" style="margin:0 2px 8px">Insights</div>
-    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:16px;margin-bottom:18px">
-      <div class="card lift">
-        <div class="section-title">🏆 Top 5 Scores</div>
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:16px;margin-bottom:16px">
+      <div class="card">
+        <div style="font-weight:700;font-size:15px;color:var(--primary);margin-bottom:10px">🏆 Top 5 Scores</div>
         <div style="position:relative;height:220px"><canvas id="ch-top5"></canvas></div>
       </div>
-      <div class="card lift">
-        <div class="section-title">👥 User Status</div>
+      <div class="card">
+        <div style="font-weight:700;font-size:15px;color:var(--primary);margin-bottom:10px">👥 User Status</div>
         <div style="position:relative;height:220px"><canvas id="ch-status"></canvas></div>
       </div>
-      <div class="card lift">
-        <div class="section-title">📈 Quiz Participation</div>
+      <div class="card">
+        <div style="font-weight:700;font-size:15px;color:var(--primary);margin-bottom:10px">📈 Quiz Participation</div>
         <div style="position:relative;height:220px"><canvas id="ch-trend"></canvas></div>
       </div>
     </div>
     <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:14px">
-      <div class="card lift">
-        <div class="section-title">🎯 Performance Meters</div>
+      <div class="card">
+        <div style="font-weight:700;font-size:15px;color:var(--primary);margin-bottom:12px">🎯 Performance Meters</div>
         <div style="display:flex;justify-content:space-around">
           ${makeSpeedo(app.length,Math.max(all.length,1),'Approval Rate','var(--primary)')}
           ${makeSpeedo(app.filter(u=>u.scores&&u.scores.length>0).length,Math.max(app.length,1),'Participation','var(--secondary)')}
         </div>
       </div>
-      <div class="card lift">
-        <div class="section-title">⚠️ Flagged Users</div>
-        ${flag.length===0?'<div style="color:var(--muted);font-size:14px">No flagged users 🎉</div>':flag.map((u,i,arr)=>`
-          <div class="list-row" style="${i===arr.length-1?'border-bottom:none':''}">
-            <div class="avatar-circle" style="width:34px;height:34px;font-size:13px;background:linear-gradient(150deg,#fbdcd6,#f3c1b8);color:var(--danger)">${(u.name||'?')[0]}</div>
-            <div style="flex:1;min-width:0"><div style="font-weight:700;font-size:13.5px">${u.name}</div><div style="color:var(--muted);font-size:12px">${u.email}</div></div>
-            <span class="pill-status" style="background:#fde8e8;color:var(--danger)"><span class="dot"></span>Flagged</span>
+      <div class="card">
+        <div style="font-weight:700;font-size:15px;color:var(--primary);margin-bottom:10px">⚠️ Flagged Users</div>
+        ${flag.length===0?'<div style="color:var(--muted);font-size:14px">No flagged users 🎉</div>':flag.map(u=>`
+          <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid var(--border);font-size:13px">
+            <div><div style="font-weight:600">${u.name}</div><div style="color:var(--muted)">${u.email}</div></div>
+            <span class="badge" style="background:#fde8e8;color:var(--danger)">Flagged ⚠️</span>
           </div>`).join('')}
       </div>
     </div>`;
@@ -3108,23 +2976,20 @@ function destroyChart(id){const c=Chart.getChart(document.getElementById(id));if
 function renderAdminUsers(){
   const all=users.filter(u=>u.id!==currentUser.id);
   document.getElementById('a-users').innerHTML=`
-    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;flex-wrap:wrap;gap:10px">
-      <div>
-        <div class="section-eyebrow">Community</div>
-        <div class="font-display" style="font-weight:800;font-size:21px;color:var(--primaryDk)">👥 User Management</div>
-      </div>
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;flex-wrap:wrap;gap:10px">
+      <div style="font-weight:800;font-size:20px;color:var(--primary)">👥 User Management</div>
       <div style="display:flex;gap:8px;flex-wrap:wrap">
         <input type="text" id="usr-search" placeholder="🔍 Search..." style="width:180px" oninput="filterUsers()"/>
-        <button class="gbtn" onclick="bulkApproveAll()" style="padding:9px 16px;font-size:13px;background:linear-gradient(135deg,var(--primary),var(--primaryDk))">✅ Approve All Pending</button>
-        <button class="gbtn" onclick="bulkApproveSelected()" id="btn-approve-sel" style="padding:9px 16px;font-size:13px;background:linear-gradient(135deg,var(--secondary),#0a3d70);display:none">✔ Approve Selected (<span id="sel-count">0</span>)</button>
+        <button class="gbtn" onclick="bulkApproveAll()" style="padding:8px 16px;font-size:13px;background:var(--success)">✅ Approve All Pending</button>
+        <button class="gbtn" onclick="bulkApproveSelected()" id="btn-approve-sel" style="padding:8px 16px;font-size:13px;background:var(--secondary);display:none">✔ Approve Selected (<span id="sel-count">0</span>)</button>
       </div>
     </div>
-    <div class="card" style="overflow-x:auto;padding:0">
-      <table class="exec-table" id="usr-table">
+    <div class="card" style="overflow-x:auto">
+      <table style="width:100%;border-collapse:collapse;font-size:13px" id="usr-table">
         <thead>
-          <tr>
-            <th><input type="checkbox" id="chk-all" onchange="toggleAllPending(this)"/></th>
-            ${['Name','Email','Phone','Joined','Bank','Status','Role','Action'].map(h=>`<th>${h}</th>`).join('')}
+          <tr style="background:#e8f5e9">
+            <th style="padding:10px 8px;text-align:left;color:var(--primary)"><input type="checkbox" id="chk-all" onchange="toggleAllPending(this)"/></th>
+            ${['Name','Email','Phone','Joined','Bank','Status','Role','Action'].map(h=>`<th style="padding:10px 8px;text-align:left;font-weight:700;color:var(--primary)">${h}</th>`).join('')}
           </tr>
         </thead>
         <tbody id="usr-tbody"></tbody>
@@ -3135,30 +3000,22 @@ function renderAdminUsers(){
 }
 function renderUserRows(list){
   document.getElementById('usr-tbody').innerHTML=list.length===0
-    ?'<tr><td colspan="9" style="padding:26px;text-align:center;color:var(--muted)">No users found</td></tr>'
-    :list.map((u)=>`
-    <tr>
-      <td>${u.status==='pending'?`<input type="checkbox" class="pend-chk" value="${u.id}"/>`:'—'}</td>
-      <td>
-        <div style="display:flex;align-items:center;gap:10px">
-          <div class="avatar-circle" style="width:32px;height:32px;font-size:12px;flex-shrink:0">${(u.name||'?')[0]}</div>
-          <div style="min-width:0">
-            <div style="font-weight:700;font-size:13px">${u.name||'—'}</div>
-            ${u.flagged?`<span class="badge" style="background:#fde8e8;color:var(--danger);font-size:9.5px;padding:2px 8px;margin-top:2px">⚠️ FLAG</span>`:''}
-          </div>
-        </div>
-      </td>
-      <td style="color:var(--muted)">${u.email||'—'}</td>
-      <td>${u.phone||'—'}</td>
-      <td style="color:var(--muted)">${u.joinDate||'—'}</td>
-      <td style="font-size:12px">${u.bank?.bankName||'—'}</td>
-      <td><span class="pill-status" style="background:${u.status==='approved'?'#e8f5e9':u.status==='pending'?'#fff8e1':'#fde8e8'};color:${u.status==='approved'?'var(--success)':u.status==='pending'?'var(--warning)':'var(--danger)'}"><span class="dot"></span>${u.status}</span></td>
-      <td><span class="pill-status" style="background:${u.role==='admin'?'#fff3e0':'#e3f2fd'};color:${u.role==='admin'?'#e65100':'var(--secondary)'}">${u.role==='admin'?'⚙️ Admin':'👤 Contestant'}</span></td>
-      <td style="display:flex;gap:6px;flex-wrap:wrap">
-        ${u.status==='pending'?`<button class="gbtn" onclick="approveUser('${u.id}')" style="padding:7px 12px;font-size:12px;background:var(--success)">Approve</button>`:''}
+    ?'<tr><td colspan="9" style="padding:20px;text-align:center;color:var(--muted)">No users found</td></tr>'
+    :list.map((u,i)=>`
+    <tr style="background:${i%2===0?'#fff':'#f9fffe'};border-bottom:1px solid var(--border)">
+      <td style="padding:10px 8px">${u.status==='pending'?`<input type="checkbox" class="pend-chk" value="${u.id}"/>`:'—'}</td>
+      <td style="padding:10px 8px;font-weight:600">${u.name||'—'}${u.flagged?` <span class="badge" style="background:#fde8e8;color:var(--danger);font-size:10px">⚠️ FLAG</span>`:''}</td>
+      <td style="padding:10px 8px;color:var(--muted)">${u.email||'—'}</td>
+      <td style="padding:10px 8px">${u.phone||'—'}</td>
+      <td style="padding:10px 8px;color:var(--muted)">${u.joinDate||'—'}</td>
+      <td style="padding:10px 8px;font-size:12px">${u.bank?.bankName||'—'}</td>
+      <td style="padding:10px 8px"><span class="badge" style="background:${u.status==='approved'?'#e8f5e9':u.status==='pending'?'#fff8e1':'#fde8e8'};color:${u.status==='approved'?'var(--success)':u.status==='pending'?'var(--warning)':'var(--danger)'}">${u.status}</span></td>
+      <td style="padding:10px 8px"><span class="badge" style="background:${u.role==='admin'?'#fff3e0':'#e3f2fd'};color:${u.role==='admin'?'#e65100':'var(--secondary)'}">${u.role==='admin'?'⚙️ Admin':'👤 Contestant'}</span></td>
+      <td style="padding:10px 8px;display:flex;gap:6px;flex-wrap:wrap">
+        ${u.status==='pending'?`<button class="gbtn" onclick="approveUser('${u.id}')" style="padding:6px 12px;font-size:12px;background:var(--success)">Approve</button>`:''}
         ${u.role==='admin'
-          ?`<button class="gbtn" onclick="setUserRole('${u.id}','contestant','${(u.name||'this user').replace(/'/g,"\\'")}')" style="padding:7px 12px;font-size:12px;background:var(--muted)">Remove Admin</button>`
-          :`<button class="gbtn" onclick="setUserRole('${u.id}','admin','${(u.name||'this user').replace(/'/g,"\\'")}')" style="padding:7px 12px;font-size:12px;background:#e65100">⚙️ Make Admin</button>`}
+          ?`<button class="gbtn" onclick="setUserRole('${u.id}','contestant','${(u.name||'this user').replace(/'/g,"\\'")}')" style="padding:6px 12px;font-size:12px;background:var(--muted)">Remove Admin</button>`
+          :`<button class="gbtn" onclick="setUserRole('${u.id}','admin','${(u.name||'this user').replace(/'/g,"\\'")}')" style="padding:6px 12px;font-size:12px;background:#e65100">⚙️ Make Admin</button>`}
       </td>
     </tr>`).join('');
 }
