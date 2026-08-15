@@ -359,6 +359,7 @@ html,body{overflow-x:hidden;max-width:100vw}
         <div><label style="font-size:12px;font-weight:600;color:var(--muted)">Email</label><input type="email" id="rg-email" style="margin-top:4px"/></div>
         <div><label style="font-size:12px;font-weight:600;color:var(--muted)">Password</label><input type="password" id="rg-pass" style="margin-top:4px"/></div>
         <div><label style="font-size:12px;font-weight:600;color:var(--muted)">Phone</label><input type="tel" id="rg-phone" style="margin-top:4px"/></div>
+        <div><label style="font-size:12px;font-weight:600;color:var(--muted)">Country</label><select id="rg-country" style="margin-top:4px"></select></div>
       </div>
       <div style="border-top:1px solid var(--border);padding-top:14px;margin-bottom:10px;font-weight:700;font-size:13px;color:#5D4037">💳 Bank Account Details (Prize Disbursement)</div>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:16px">
@@ -656,6 +657,7 @@ html,body{overflow-x:hidden;max-width:100vw}
     <button class="tab-btn" onclick="aTab('a-leaderboard',this)">🏆 Leaderboard</button>
     <button class="tab-btn" onclick="aTab('a-reports',this)">📊 Reports</button>
     <button class="tab-btn" onclick="aTab('a-bank',this)">💳 Bank Export</button>
+    <button class="tab-btn" onclick="aTab('a-profile',this)">👤 My Profile</button>
   </div>
   <div style="max-width:1160px;margin:0 auto;padding:18px 16px 40px">
     <div id="a-dashboard"></div>
@@ -665,6 +667,7 @@ html,body{overflow-x:hidden;max-width:100vw}
     <div id="a-leaderboard" style="display:none"></div>
     <div id="a-reports" style="display:none"></div>
     <div id="a-bank" style="display:none"></div>
+    <div id="a-profile" style="display:none"></div>
   </div>
 </div>
 
@@ -1306,13 +1309,13 @@ async function cTab(id,btn){
   if(id==='c-profile')renderContestantProfile();
 }
 async function aTab(id,btn){
-  ['a-dashboard','a-users','a-quizzes','a-livehost','a-leaderboard','a-reports','a-bank'].forEach(t=>{
+  ['a-dashboard','a-users','a-quizzes','a-livehost','a-leaderboard','a-reports','a-bank','a-profile'].forEach(t=>{
     const el=document.getElementById(t);if(el)el.style.display='none';
   });
   document.getElementById(id).style.display='block';
   document.querySelectorAll('#s-admin .tab-btn').forEach(b=>b.classList.remove('active'));
   btn.classList.add('active');
-  if(['a-dashboard','a-users','a-leaderboard','a-reports'].includes(id)&&getSupabase())await loadAllData();
+  if(['a-dashboard','a-users','a-leaderboard','a-reports','a-profile'].includes(id)&&getSupabase())await loadAllData();
   if(id==='a-dashboard')renderAdminDashboard();
   if(id==='a-users')renderAdminUsers();
   if(id==='a-quizzes')renderAdminQuizzes();
@@ -1320,6 +1323,7 @@ async function aTab(id,btn){
   if(id==='a-leaderboard')renderAdminLeaderboard();
   if(id==='a-reports')renderAdminReports();
   if(id==='a-bank')renderAdminBank();
+  if(id==='a-profile')renderAdminProfile();
 }
 function getLeaderboard(){return users.filter(u=>u.role==='contestant'&&u.status==='approved').sort((a,b)=>b.totalScore-a.totalScore);}
 function getQuizLeaderboard(quizId){
@@ -1361,7 +1365,7 @@ function openPlayerCard(userId){
       <div style="text-align:center;margin-top:-8px">
         <div class="hero-avatar" style="margin:0 auto 12px;width:64px;height:64px;font-size:22px">${initials||'🙏'}</div>
         <div class="font-display" style="font-size:19px;font-weight:800">${u.name||'Contestant'}</div>
-        <div style="font-size:11.5px;color:rgba(255,255,255,.7);margin-top:2px;letter-spacing:.4px">${quizIdFor(u)}${u.country?' · '+u.country:''}</div>
+        <div style="font-size:11.5px;color:rgba(255,255,255,.7);margin-top:2px;letter-spacing:.4px">${quizIdFor(u)}${u.country?' · '+flagFor(u.country)+' '+u.country:''}</div>
         ${u.bio?`<div style="font-size:12px;color:rgba(255,255,255,.85);margin-top:8px;max-width:260px;margin-left:auto;margin-right:auto">${u.bio}</div>`:''}
         <div style="display:flex;justify-content:center;gap:8px;margin-top:14px;flex-wrap:wrap">
           ${mastery!==null?`<span class="role-chip">🧭 ${mastery} Mastery</span>`:''}
@@ -1398,6 +1402,221 @@ function genPin(){return Math.floor(100000+Math.random()*900000).toString();}
 // or for any user row where it's still null — it falls back to a
 // UUID-derived placeholder that's at least stable per-account, so the ID
 // shown never changes underneath a player once the real number exists.
+// =====================================================================
+//  COUNTRY -> FLAG MAP
+//  Generated programmatically from ISO 3166-1 alpha-2 codes (198
+//  countries), not hand-typed, so every emoji is guaranteed correct.
+//  Used by the country <select> on Registration/Edit Profile and by
+//  flagFor() wherever a player's country needs a flag next to it.
+// =====================================================================
+const COUNTRY_FLAGS = {
+  "Afghanistan":"🇦🇫",
+  "Albania":"🇦🇱",
+  "Algeria":"🇩🇿",
+  "Andorra":"🇦🇩",
+  "Angola":"🇦🇴",
+  "Antigua and Barbuda":"🇦🇬",
+  "Argentina":"🇦🇷",
+  "Armenia":"🇦🇲",
+  "Australia":"🇦🇺",
+  "Austria":"🇦🇹",
+  "Azerbaijan":"🇦🇿",
+  "Bahamas":"🇧🇸",
+  "Bahrain":"🇧🇭",
+  "Bangladesh":"🇧🇩",
+  "Barbados":"🇧🇧",
+  "Belarus":"🇧🇾",
+  "Belgium":"🇧🇪",
+  "Belize":"🇧🇿",
+  "Benin":"🇧🇯",
+  "Bhutan":"🇧🇹",
+  "Bolivia":"🇧🇴",
+  "Bosnia and Herzegovina":"🇧🇦",
+  "Botswana":"🇧🇼",
+  "Brazil":"🇧🇷",
+  "Brunei":"🇧🇳",
+  "Bulgaria":"🇧🇬",
+  "Burkina Faso":"🇧🇫",
+  "Burundi":"🇧🇮",
+  "Cabo Verde":"🇨🇻",
+  "Cambodia":"🇰🇭",
+  "Cameroon":"🇨🇲",
+  "Canada":"🇨🇦",
+  "Central African Republic":"🇨🇫",
+  "Chad":"🇹🇩",
+  "Chile":"🇨🇱",
+  "China":"🇨🇳",
+  "Colombia":"🇨🇴",
+  "Comoros":"🇰🇲",
+  "Congo":"🇨🇬",
+  "Congo (DRC)":"🇨🇩",
+  "Costa Rica":"🇨🇷",
+  "Cote d'Ivoire":"🇨🇮",
+  "Croatia":"🇭🇷",
+  "Cuba":"🇨🇺",
+  "Cyprus":"🇨🇾",
+  "Czechia":"🇨🇿",
+  "Denmark":"🇩🇰",
+  "Djibouti":"🇩🇯",
+  "Dominica":"🇩🇲",
+  "Dominican Republic":"🇩🇴",
+  "Ecuador":"🇪🇨",
+  "Egypt":"🇪🇬",
+  "El Salvador":"🇸🇻",
+  "Equatorial Guinea":"🇬🇶",
+  "Eritrea":"🇪🇷",
+  "Estonia":"🇪🇪",
+  "Eswatini":"🇸🇿",
+  "Ethiopia":"🇪🇹",
+  "Fiji":"🇫🇯",
+  "Finland":"🇫🇮",
+  "France":"🇫🇷",
+  "Gabon":"🇬🇦",
+  "Gambia":"🇬🇲",
+  "Georgia":"🇬🇪",
+  "Germany":"🇩🇪",
+  "Ghana":"🇬🇭",
+  "Greece":"🇬🇷",
+  "Grenada":"🇬🇩",
+  "Guatemala":"🇬🇹",
+  "Guinea":"🇬🇳",
+  "Guinea-Bissau":"🇬🇼",
+  "Guyana":"🇬🇾",
+  "Haiti":"🇭🇹",
+  "Honduras":"🇭🇳",
+  "Hong Kong":"🇭🇰",
+  "Hungary":"🇭🇺",
+  "Iceland":"🇮🇸",
+  "India":"🇮🇳",
+  "Indonesia":"🇮🇩",
+  "Iran":"🇮🇷",
+  "Iraq":"🇮🇶",
+  "Ireland":"🇮🇪",
+  "Israel":"🇮🇱",
+  "Italy":"🇮🇹",
+  "Jamaica":"🇯🇲",
+  "Japan":"🇯🇵",
+  "Jordan":"🇯🇴",
+  "Kazakhstan":"🇰🇿",
+  "Kenya":"🇰🇪",
+  "Kiribati":"🇰🇮",
+  "Kuwait":"🇰🇼",
+  "Kyrgyzstan":"🇰🇬",
+  "Laos":"🇱🇦",
+  "Latvia":"🇱🇻",
+  "Lebanon":"🇱🇧",
+  "Lesotho":"🇱🇸",
+  "Liberia":"🇱🇷",
+  "Libya":"🇱🇾",
+  "Liechtenstein":"🇱🇮",
+  "Lithuania":"🇱🇹",
+  "Luxembourg":"🇱🇺",
+  "Madagascar":"🇲🇬",
+  "Malawi":"🇲🇼",
+  "Malaysia":"🇲🇾",
+  "Maldives":"🇲🇻",
+  "Mali":"🇲🇱",
+  "Malta":"🇲🇹",
+  "Marshall Islands":"🇲🇭",
+  "Mauritania":"🇲🇷",
+  "Mauritius":"🇲🇺",
+  "Mexico":"🇲🇽",
+  "Micronesia":"🇫🇲",
+  "Moldova":"🇲🇩",
+  "Monaco":"🇲🇨",
+  "Mongolia":"🇲🇳",
+  "Montenegro":"🇲🇪",
+  "Morocco":"🇲🇦",
+  "Mozambique":"🇲🇿",
+  "Myanmar":"🇲🇲",
+  "Namibia":"🇳🇦",
+  "Nauru":"🇳🇷",
+  "Nepal":"🇳🇵",
+  "Netherlands":"🇳🇱",
+  "New Zealand":"🇳🇿",
+  "Nicaragua":"🇳🇮",
+  "Niger":"🇳🇪",
+  "Nigeria":"🇳🇬",
+  "North Korea":"🇰🇵",
+  "North Macedonia":"🇲🇰",
+  "Norway":"🇳🇴",
+  "Oman":"🇴🇲",
+  "Pakistan":"🇵🇰",
+  "Palau":"🇵🇼",
+  "Palestine":"🇵🇸",
+  "Panama":"🇵🇦",
+  "Papua New Guinea":"🇵🇬",
+  "Paraguay":"🇵🇾",
+  "Peru":"🇵🇪",
+  "Philippines":"🇵🇭",
+  "Poland":"🇵🇱",
+  "Portugal":"🇵🇹",
+  "Puerto Rico":"🇵🇷",
+  "Qatar":"🇶🇦",
+  "Romania":"🇷🇴",
+  "Russia":"🇷🇺",
+  "Rwanda":"🇷🇼",
+  "Saint Kitts and Nevis":"🇰🇳",
+  "Saint Lucia":"🇱🇨",
+  "Saint Vincent and the Grenadines":"🇻🇨",
+  "Samoa":"🇼🇸",
+  "San Marino":"🇸🇲",
+  "Sao Tome and Principe":"🇸🇹",
+  "Saudi Arabia":"🇸🇦",
+  "Senegal":"🇸🇳",
+  "Serbia":"🇷🇸",
+  "Seychelles":"🇸🇨",
+  "Sierra Leone":"🇸🇱",
+  "Singapore":"🇸🇬",
+  "Slovakia":"🇸🇰",
+  "Slovenia":"🇸🇮",
+  "Solomon Islands":"🇸🇧",
+  "Somalia":"🇸🇴",
+  "South Africa":"🇿🇦",
+  "South Korea":"🇰🇷",
+  "South Sudan":"🇸🇸",
+  "Spain":"🇪🇸",
+  "Sri Lanka":"🇱🇰",
+  "Sudan":"🇸🇩",
+  "Suriname":"🇸🇷",
+  "Sweden":"🇸🇪",
+  "Switzerland":"🇨🇭",
+  "Syria":"🇸🇾",
+  "Taiwan":"🇹🇼",
+  "Tajikistan":"🇹🇯",
+  "Tanzania":"🇹🇿",
+  "Thailand":"🇹🇭",
+  "Timor-Leste":"🇹🇱",
+  "Togo":"🇹🇬",
+  "Tonga":"🇹🇴",
+  "Trinidad and Tobago":"🇹🇹",
+  "Tunisia":"🇹🇳",
+  "Turkiye":"🇹🇷",
+  "Turkmenistan":"🇹🇲",
+  "Tuvalu":"🇹🇻",
+  "Uganda":"🇺🇬",
+  "Ukraine":"🇺🇦",
+  "United Arab Emirates":"🇦🇪",
+  "United Kingdom":"🇬🇧",
+  "United States":"🇺🇸",
+  "Uruguay":"🇺🇾",
+  "Uzbekistan":"🇺🇿",
+  "Vanuatu":"🇻🇺",
+  "Vatican City":"🇻🇦",
+  "Venezuela":"🇻🇪",
+  "Vietnam":"🇻🇳",
+  "Yemen":"🇾🇪",
+  "Zambia":"🇿🇲",
+  "Zimbabwe":"🇿🇼"
+};
+const COUNTRY_LIST = Object.keys(COUNTRY_FLAGS).sort();
+function flagFor(countryName){ return COUNTRY_FLAGS[countryName] || '🌍'; }
+function countrySelectOptions(selected){
+  return '<option value="">Select country...</option>' + COUNTRY_LIST.map(c =>
+    `<option value="${c}" ${c===selected?'selected':''}>${flagFor(c)} ${c}</option>`
+  ).join('');
+}
+
 function quizIdFor(user){
   const memberNo=(typeof user==='object'&&user)?user.memberNo:null;
   if(memberNo)return 'LMTW-'+String(memberNo).padStart(6,'0');
@@ -1723,6 +1942,7 @@ function doRegister(){
   const email=document.getElementById('rg-email').value.trim();
   const pass=document.getElementById('rg-pass').value;
   const phone=document.getElementById('rg-phone').value.trim();
+  const country=document.getElementById('rg-country').value;
   const bname=document.getElementById('rg-bname').value.trim();
   const bank=document.getElementById('rg-bank').value.trim();
   const acct=document.getElementById('rg-acct').value.trim();
@@ -1731,9 +1951,18 @@ function doRegister(){
   if(!sb){notify('Database not configured','error');return;}
   sb.auth.signUp({
     email,password:pass,
-    options:{data:{name,phone,bank_name:bname,bank_institution:bank,bank_account:acct}}
-  }).then(({data,error})=>{
+    options:{data:{name,phone,country,bank_name:bname,bank_institution:bank,bank_account:acct}}
+  }).then(async({data,error})=>{
     if(error){notify(friendlyErrorMsg(error),'error');return;}
+    // Best-effort: the trigger that creates the profiles row on signup was
+    // written before `country` existed as a column, so it won't have
+    // copied it across. If a session exists immediately (depends on your
+    // project's "confirm email" setting), this fills it in right away;
+    // if not, country just stays unset until the user visits Edit Profile
+    // — never blocks registration either way.
+    if(country&&data?.user?.id){
+      try{ await sb.from('profiles').update({country}).eq('id',data.user.id); }catch(e){/* non-fatal */}
+    }
     notify('Registration successful! Awaiting admin approval 🎉');
     goTo('s-landing');
   });
@@ -2824,9 +3053,16 @@ function renderContestantProfile(){
       <div style="position:relative;display:flex;align-items:center;gap:18px;flex-wrap:wrap">
         <div class="hero-avatar">${initials||'🙏'}</div>
         <div style="flex:1;min-width:200px">
-          <div class="font-display" style="font-size:21px;font-weight:800">${u.name||'—'}</div>
-          <div style="font-size:12px;color:rgba(255,255,255,.72);margin-top:2px;letter-spacing:.4px">${quizId}${u.country?' · '+u.country:''}</div>
-          <div style="display:flex;gap:10px;margin-top:14px;flex-wrap:wrap">
+          <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+            <span class="font-display" style="font-size:21px;font-weight:800">${u.name||'—'}</span>
+            <button class="gbtn" onclick="openEditProfile()" style="padding:5px 12px;font-size:11px;background:rgba(255,255,255,.16)">✏️ Edit Profile</button>
+          </div>
+          ${u.country?`<div style="display:flex;align-items:center;gap:7px;margin-top:6px"><span style="font-size:19px;line-height:1">${flagFor(u.country)}</span><span style="font-size:13px;color:rgba(255,255,255,.85);font-weight:700;letter-spacing:.3px">${u.country}</span></div>`:''}
+          <div style="display:inline-flex;align-items:center;gap:8px;margin-top:10px;background:rgba(0,0,0,.18);border:1px solid rgba(255,255,255,.16);border-radius:9px;padding:5px 12px">
+            <span style="font-size:9.5px;font-weight:800;letter-spacing:1.4px;color:rgba(255,255,255,.55)">QUIZ ID</span>
+            <span style="font-size:12.5px;font-weight:800;color:var(--gold2);letter-spacing:.4px">${quizId}</span>
+          </div>
+          <div style="display:flex;gap:10px;margin-top:12px;flex-wrap:wrap">
             <span class="role-chip">${mastery!==null?`🧭 ${mastery} Bible Mastery`:'🧭 Mastery unlocks after your first quiz'}</span>
             ${myRank>0?`<span class="role-chip">🏆 #${myRank} Global</span>`:''}
             <span class="role-chip">⭐ ${(u.totalScore||0).toLocaleString()} points</span>
@@ -2956,24 +3192,9 @@ function renderContestantProfile(){
     </div>
 
     <!-- ============ ACCOUNT & PAYOUT (kept separate from the Career story) ============ -->
-    <div class="subtab-panel" id="cc-account">
-      <div class="section-eyebrow" style="margin:0 2px 8px">Private — only visible to you</div>
-      <div class="card">
-        <div class="section-title">🔒 Account &amp; Payout Details</div>
-        ${[
-          ['✉️ Email',u.email||'—'],
-          ['📱 Phone',u.phone||'—'],
-          ['🗓️ Join Date',u.joinDate||'—'],
-          ['💳 Account Name',u.bank?.name||'—'],
-          ['🏦 Bank Name',u.bank?.bankName||'—'],
-          ['🔢 Account Number',String(u.bank?.accountNumber||'—').replace(/(\d{4})(\d{4})(\d+)/,'$1 $2 $3')]
-        ].map(([l,v],i,arr)=>`
-          <div class="list-row" style="${i===arr.length-1?'border-bottom:none':''}">
-            <span style="color:var(--muted);font-weight:700;font-size:13.5px;flex:1">${l}</span>
-            <span style="font-weight:700;font-size:14px">${v}</span>
-          </div>`).join('')}
-      </div>
-    </div>`;
+    <div class="subtab-panel" id="cc-account"></div>`;
+
+  renderAccountSection(false);
 
   // Mastery progression chart — same Chart.js instance already loaded for
   // the admin dashboard; reuses destroyChart() so re-visiting this tab
@@ -2991,9 +3212,99 @@ function renderContestantProfile(){
     },50);
   }
 }
+
 // =====================================================================
-//  CONTESTANT — ALL-TIME REPORT (solo + live, per quiz)
+//  EDIT PROFILE — Public Identity (name/country/bio) + private contact
+//  (phone). Bank/payout details are deliberately NOT self-editable here:
+//  letting anyone silently redirect their own prize disbursement account
+//  is a fraud vector, so bank changes stay admin-only for now.
 // =====================================================================
+function renderAccountSection(editMode){
+  const u=users.find(x=>x.id===currentUser.id)||currentUser;
+  const panel=document.getElementById('cc-account');
+  if(!panel)return;
+  if(!editMode){
+    panel.innerHTML=`
+      <div class="section-eyebrow" style="margin:0 2px 8px">Public — shown on your Career card and to other players</div>
+      <div class="card lift" style="margin-bottom:16px">
+        <div style="display:flex;justify-content:space-between;align-items:baseline">
+          <div class="section-title" style="margin-bottom:0">🪪 Public Identity</div>
+          <button class="gbtn" onclick="openEditProfile()" style="padding:6px 12px;font-size:11.5px;background:var(--secondary)">✏️ Edit</button>
+        </div>
+        <div style="margin-top:10px">
+          ${[
+            ['Full Name',u.name||'—'],
+            ['Country',u.country?`${flagFor(u.country)} ${u.country}`:'Not set yet'],
+            ['Bio',u.bio||'Not set yet']
+          ].map(([l,v],i,arr)=>`<div class="list-row" style="${i===arr.length-1?'border-bottom:none':''}"><span style="color:var(--muted);font-weight:700;font-size:13.5px;flex:1">${l}</span><span style="font-weight:700;font-size:14px;text-align:right;max-width:60%">${v}</span></div>`).join('')}
+        </div>
+      </div>
+      <div class="section-eyebrow" style="margin:0 2px 8px">Private — only visible to you</div>
+      <div class="card">
+        <div class="section-title">🔒 Account &amp; Payout Details</div>
+        ${[
+          ['✉️ Email',u.email||'—'],
+          ['📱 Phone',u.phone||'—'],
+          ['🗓️ Join Date',u.joinDate||'—'],
+          ['💳 Account Name',u.bank?.name||'—'],
+          ['🏦 Bank Name',u.bank?.bankName||'—'],
+          ['🔢 Account Number',String(u.bank?.accountNumber||'—').replace(/(\d{4})(\d{4})(\d+)/,'$1 $2 $3')]
+        ].map(([l,v],i,arr)=>`<div class="list-row" style="${i===arr.length-1?'border-bottom:none':''}"><span style="color:var(--muted);font-weight:700;font-size:13.5px;flex:1">${l}</span><span style="font-weight:700;font-size:14px">${v}</span></div>`).join('')}
+        <div style="margin-top:10px;padding-top:10px;border-top:1px dashed var(--border);font-size:11px;color:var(--muted)">Bank/payout details can only be changed by an admin — this protects your prize disbursement from unauthorized changes.</div>
+      </div>`;
+  } else {
+    const nameEsc=(u.name||'').replace(/"/g,'&quot;');
+    const phoneVal=(u.phone==='—'?'':(u.phone||'')).replace(/"/g,'&quot;');
+    const bioEsc=(u.bio||'').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+    panel.innerHTML=`
+      <div class="section-eyebrow" style="margin:0 2px 8px">Edit your details</div>
+      <div class="card lift">
+        <div class="section-title">✏️ Edit Profile</div>
+        <label style="font-size:12px;font-weight:600;color:var(--muted)">Full Name</label>
+        <input type="text" id="ep-name" value="${nameEsc}" style="margin-top:4px;margin-bottom:12px"/>
+        <label style="font-size:12px;font-weight:600;color:var(--muted)">Phone</label>
+        <input type="tel" id="ep-phone" value="${phoneVal}" style="margin-top:4px;margin-bottom:12px"/>
+        <label style="font-size:12px;font-weight:600;color:var(--muted)">Country</label>
+        <select id="ep-country" style="margin-top:4px;margin-bottom:12px">${countrySelectOptions(u.country)}</select>
+        <label style="font-size:12px;font-weight:600;color:var(--muted)">Bio <span style="font-weight:400">(max 280 characters, shown on your public Career card)</span></label>
+        <textarea id="ep-bio" maxlength="280" rows="3" style="width:100%;margin-top:4px;margin-bottom:6px;padding:11px 14px;border-radius:11px;border:1.5px solid var(--border);font-size:14px;font-family:inherit;resize:vertical">${bioEsc}</textarea>
+        <div style="display:flex;gap:8px;margin-top:10px">
+          <button class="gbtn" onclick="cancelEditProfile()" style="flex:1;padding:11px;background:#888">Cancel</button>
+          <button class="gbtn" id="ep-savebtn" onclick="saveProfileEdit()" style="flex:2;padding:11px;background:linear-gradient(135deg,var(--primary),var(--primaryDk))">Save Changes</button>
+        </div>
+      </div>`;
+  }
+}
+function openEditProfile(){
+  const btn=document.querySelector('#c-profilebody .subtab-btn[onclick*="cc-account"]');
+  careerSubTab('cc-account',btn);
+  renderAccountSection(true);
+}
+function cancelEditProfile(){ renderAccountSection(false); }
+async function saveProfileEdit(){
+  const name=document.getElementById('ep-name').value.trim();
+  const phone=document.getElementById('ep-phone').value.trim();
+  const country=document.getElementById('ep-country').value;
+  const bio=document.getElementById('ep-bio').value.trim();
+  if(!name)return notify('Name cannot be empty','error');
+  const sb=getSupabase();
+  if(!sb){notify('Database not configured','error');return;}
+  const btn=document.getElementById('ep-savebtn');
+  btn.disabled=true;btn.textContent='Saving...';
+  // Requires phase2-player-identity.sql to have been run for country/bio
+  // to exist as columns — name/phone already existed, so this always
+  // updates those even if that migration hasn't been run yet.
+  const {error}=await sb.from('profiles').update({name,phone,country,bio}).eq('id',currentUser.id);
+  if(error){
+    btn.disabled=false;btn.textContent='Save Changes';
+    if(String(error.message||'').includes('column')&&String(error.message||'').includes('country'))notify('Run phase2-player-identity.sql in Supabase first','error');
+    else notify(friendlyErrorMsg(error),'error');
+    return;
+  }
+  notify('Profile updated ✅');
+  await loadAllData();
+  renderContestantProfile();
+}
 async function renderContestantReports(){
   const box=document.getElementById('c-reportsbody');
   box.innerHTML='<div style="text-align:center;padding:30px;color:var(--muted)">Loading your report…</div>';
@@ -4263,6 +4574,92 @@ function renderAdminBankFor(quizId){
 }
 
 // =====================================================================
+//  ADMIN — MY PROFILE (identity card, flag, edit — same pattern as the
+//  contestant Career page's Public Identity, minus mastery/achievements
+//  which are contestant-specific concepts).
+// =====================================================================
+function renderAdminProfile(){
+  renderAdminProfileSection(false);
+}
+function renderAdminProfileSection(editMode){
+  const u=users.find(x=>x.id===currentUser.id)||currentUser;
+  const initials=(u.name||'?').trim().split(/\s+/).slice(0,2).map(w=>w[0]).join('').toUpperCase();
+  const box=document.getElementById('a-profile');
+  if(!box)return;
+  if(!editMode){
+    box.innerHTML=`
+      <div class="hero-card" style="margin-bottom:16px;background:linear-gradient(150deg,#0a3d2b 0%,#0f5233 55%,#0a3d24 100%)">
+        <div style="position:relative;display:flex;align-items:center;gap:18px;flex-wrap:wrap">
+          <div class="hero-avatar" style="background:linear-gradient(160deg,var(--gold2),var(--gold))">${initials||'⚙️'}</div>
+          <div style="flex:1;min-width:200px">
+            <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+              <span class="font-display" style="font-size:21px;font-weight:800">${u.name||'—'}</span>
+              <button class="gbtn" onclick="openAdminEditProfile()" style="padding:5px 12px;font-size:11px;background:rgba(255,255,255,.16)">✏️ Edit Profile</button>
+            </div>
+            ${u.country?`<div style="display:flex;align-items:center;gap:7px;margin-top:6px"><span style="font-size:19px;line-height:1">${flagFor(u.country)}</span><span style="font-size:13px;color:rgba(255,255,255,.85);font-weight:700;letter-spacing:.3px">${u.country}</span></div>`:''}
+            <div style="display:inline-flex;align-items:center;gap:8px;margin-top:10px;background:rgba(0,0,0,.18);border:1px solid rgba(255,255,255,.16);border-radius:9px;padding:5px 12px">
+              <span style="font-size:9.5px;font-weight:800;letter-spacing:1.4px;color:rgba(255,255,255,.55)">ADMIN ID</span>
+              <span style="font-size:12.5px;font-weight:800;color:var(--gold2);letter-spacing:.4px">${quizIdFor(u)}</span>
+            </div>
+            <div style="margin-top:12px"><span class="role-chip">⚙️ Administrator</span></div>
+          </div>
+        </div>
+      </div>
+      ${u.bio?`<div class="card lift" style="margin-bottom:16px"><div class="section-title">📝 Bio</div><div style="font-size:14px;color:var(--ink-soft)">${u.bio}</div></div>`:''}
+      <div class="card">
+        <div class="section-title">🔒 Account Details</div>
+        ${[
+          ['✉️ Email',u.email||'—'],
+          ['📱 Phone',u.phone||'—'],
+          ['🗓️ Joined',u.joinDate||'—']
+        ].map(([l,v],i,arr)=>`<div class="list-row" style="${i===arr.length-1?'border-bottom:none':''}"><span style="color:var(--muted);font-weight:700;font-size:13.5px;flex:1">${l}</span><span style="font-weight:700;font-size:14px">${v}</span></div>`).join('')}
+      </div>`;
+  } else {
+    const nameEsc=(u.name||'').replace(/"/g,'&quot;');
+    const phoneVal=(u.phone==='—'?'':(u.phone||'')).replace(/"/g,'&quot;');
+    const bioEsc=(u.bio||'').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+    box.innerHTML=`
+      <div class="card lift">
+        <div class="section-title">✏️ Edit Profile</div>
+        <label style="font-size:12px;font-weight:600;color:var(--muted)">Full Name</label>
+        <input type="text" id="ap-name" value="${nameEsc}" style="margin-top:4px;margin-bottom:12px"/>
+        <label style="font-size:12px;font-weight:600;color:var(--muted)">Phone</label>
+        <input type="tel" id="ap-phone" value="${phoneVal}" style="margin-top:4px;margin-bottom:12px"/>
+        <label style="font-size:12px;font-weight:600;color:var(--muted)">Country</label>
+        <select id="ap-country" style="margin-top:4px;margin-bottom:12px">${countrySelectOptions(u.country)}</select>
+        <label style="font-size:12px;font-weight:600;color:var(--muted)">Bio <span style="font-weight:400">(max 280 characters)</span></label>
+        <textarea id="ap-bio" maxlength="280" rows="3" style="width:100%;margin-top:4px;margin-bottom:6px;padding:11px 14px;border-radius:11px;border:1.5px solid var(--border);font-size:14px;font-family:inherit;resize:vertical">${bioEsc}</textarea>
+        <div style="display:flex;gap:8px;margin-top:10px">
+          <button class="gbtn" onclick="renderAdminProfileSection(false)" style="flex:1;padding:11px;background:#888">Cancel</button>
+          <button class="gbtn" id="ap-savebtn" onclick="saveAdminProfileEdit()" style="flex:2;padding:11px;background:linear-gradient(135deg,var(--primary),var(--primaryDk))">Save Changes</button>
+        </div>
+      </div>`;
+  }
+}
+function openAdminEditProfile(){ renderAdminProfileSection(true); }
+async function saveAdminProfileEdit(){
+  const name=document.getElementById('ap-name').value.trim();
+  const phone=document.getElementById('ap-phone').value.trim();
+  const country=document.getElementById('ap-country').value;
+  const bio=document.getElementById('ap-bio').value.trim();
+  if(!name)return notify('Name cannot be empty','error');
+  const sb=getSupabase();
+  if(!sb){notify('Database not configured','error');return;}
+  const btn=document.getElementById('ap-savebtn');
+  btn.disabled=true;btn.textContent='Saving...';
+  const {error}=await sb.from('profiles').update({name,phone,country,bio}).eq('id',currentUser.id);
+  if(error){
+    btn.disabled=false;btn.textContent='Save Changes';
+    if(String(error.message||'').includes('column')&&String(error.message||'').includes('country'))notify('Run phase2-player-identity.sql in Supabase first','error');
+    else notify(friendlyErrorMsg(error),'error');
+    return;
+  }
+  notify('Profile updated ✅');
+  await loadAllData();
+  renderAdminProfileSection(false);
+}
+
+// =====================================================================
 //  CSV EXPORTS
 // =====================================================================
 function exportCSV(data,filename){
@@ -4304,6 +4701,7 @@ document.addEventListener('keydown',function handleKeyDown(e){
 
 // Restore session / in-progress live game on page load (instead of always
 // dropping the user back to the landing/login screen on refresh)
+document.getElementById('rg-country').innerHTML=countrySelectOptions();
 bootApp();
 </script>
 </body>
