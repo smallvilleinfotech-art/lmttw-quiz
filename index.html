@@ -304,7 +304,39 @@ html,body{overflow-x:hidden;max-width:100vw}
       <div style="margin-bottom:10px"><input type="email" id="li-email" placeholder="Email address"/></div>
       <div style="margin-bottom:16px"><input type="password" id="li-pass" placeholder="Password"/></div>
       <button class="gbtn" onclick="doLogin()" style="width:100%;padding:14px;font-size:16px;background:linear-gradient(135deg,var(--primary),var(--primaryDk))">Sign In →</button>
+      <div style="text-align:center;margin-top:10px"><span onclick="goTo('s-forgot')" style="color:var(--secondary);cursor:pointer;font-weight:700;font-size:12.5px">Forgot password?</span></div>
       <div style="text-align:center;margin-top:14px;font-size:13px;color:var(--muted)">New here? <span onclick="goTo('s-register')" style="color:var(--primary);cursor:pointer;font-weight:700">Register as Contestant</span></div>
+    </div>
+  </div>
+</div>
+
+<!-- ==================== FORGOT PASSWORD ==================== -->
+<div class="screen" id="s-forgot">
+  <div style="max-width:440px;margin:0 auto;padding:48px 20px;text-align:center">
+    <div style="font-size:48px;margin-bottom:10px">🔑</div>
+    <div class="font-display" style="font-size:22px;color:var(--primaryDk);margin-bottom:6px">Reset your password</div>
+    <div style="font-size:13px;color:var(--muted);margin-bottom:24px">Enter your account email and we'll send you a link to set a new password.</div>
+    <div class="card" style="text-align:left">
+      <label style="font-size:12px;font-weight:600;color:var(--muted)">Email address</label>
+      <input type="email" id="fp-email" placeholder="you@example.com" style="margin-top:4px;margin-bottom:16px" onkeydown="if(event.key==='Enter')doForgotPassword()"/>
+      <button class="gbtn" id="fp-sendbtn" onclick="doForgotPassword()" style="width:100%;padding:13px;font-size:15px;background:linear-gradient(135deg,var(--primary),var(--primaryDk))">Send Reset Link →</button>
+      <button class="gbtn" onclick="goTo('s-landing')" style="width:100%;padding:10px;font-size:13px;background:#888;margin-top:8px">← Back to Sign In</button>
+    </div>
+  </div>
+</div>
+
+<!-- ==================== SET NEW PASSWORD (landed here from the reset email) ==================== -->
+<div class="screen" id="s-reset-password">
+  <div style="max-width:440px;margin:0 auto;padding:48px 20px;text-align:center">
+    <div style="font-size:48px;margin-bottom:10px">🔐</div>
+    <div class="font-display" style="font-size:22px;color:var(--primaryDk);margin-bottom:6px">Set a new password</div>
+    <div style="font-size:13px;color:var(--muted);margin-bottom:24px">Choose a new password for your account.</div>
+    <div class="card" style="text-align:left">
+      <label style="font-size:12px;font-weight:600;color:var(--muted)">New password</label>
+      <input type="password" id="rp-pass1" placeholder="At least 6 characters" style="margin-top:4px;margin-bottom:12px"/>
+      <label style="font-size:12px;font-weight:600;color:var(--muted)">Confirm new password</label>
+      <input type="password" id="rp-pass2" placeholder="Re-enter password" style="margin-top:4px;margin-bottom:16px" onkeydown="if(event.key==='Enter')doResetPassword()"/>
+      <button class="gbtn" id="rp-savebtn" onclick="doResetPassword()" style="width:100%;padding:13px;font-size:15px;background:linear-gradient(135deg,var(--primary),var(--primaryDk))">Update Password →</button>
     </div>
   </div>
 </div>
@@ -760,6 +792,16 @@ function getSupabase() {
   if (typeof window.supabase === 'undefined' || !window.supabase?.createClient) return null;
   if (SUPABASE_URL === 'YOUR_SUPABASE_URL') return null; // not configured yet
   _supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+  // When someone clicks the link in a "reset your password" email, Supabase
+  // automatically detects the recovery token in the URL and fires this
+  // event with a temporary authenticated session already in place. We only
+  // need to react to it by showing the "set a new password" screen —
+  // Supabase has already done the token verification for us.
+  _supabase.auth.onAuthStateChange((event)=>{
+    if(event==='PASSWORD_RECOVERY'){
+      goTo('s-reset-password');
+    }
+  });
   return _supabase;
 }
 
@@ -1693,6 +1735,65 @@ function doRegister(){
   }).then(({data,error})=>{
     if(error){notify(friendlyErrorMsg(error),'error');return;}
     notify('Registration successful! Awaiting admin approval 🎉');
+    goTo('s-landing');
+  });
+}
+
+// =====================================================================
+//  FORGOT / RESET PASSWORD
+// =====================================================================
+// redirectTo is built from wherever this page is actually being loaded
+// from (window.location) rather than hardcoded, so it's always correct —
+// for real users that's your production URL, and if you're testing this
+// flow locally it correctly points back to your local copy too.
+//
+// IMPORTANT — the "localhost" problem this fixes is almost always a
+// Supabase Dashboard setting, not app code: Authentication → URL
+// Configuration → "Site URL" defaults to http://localhost:3000, and
+// Supabase falls back to that Site URL for the link it actually emails
+// whenever the redirectTo you pass isn't on the allow-list below it
+// ("Redirect URLs") — so BOTH need to be set to your real domain:
+//   1. Site URL           → your production URL, e.g. https://yourapp.com
+//   2. Redirect URLs      → add that same URL (and http://localhost:PORT
+//                            too, if you also test locally)
+// Nothing in the JS code below can work around a Site URL that's still
+// set to localhost — that setting always wins.
+function doForgotPassword(){
+  const email=document.getElementById('fp-email').value.trim();
+  if(!email)return notify('Enter your email address','error');
+  const sb=getSupabase();
+  if(!sb){notify('Database not configured','error');return;}
+  const btn=document.getElementById('fp-sendbtn');
+  btn.disabled=true;btn.textContent='Sending...';
+  const redirectTo=window.location.origin+window.location.pathname;
+  sb.auth.resetPasswordForEmail(email,{redirectTo}).then(({error})=>{
+    btn.disabled=false;btn.textContent='Send Reset Link →';
+    // Supabase deliberately doesn't reveal whether the email exists (to
+    // prevent account enumeration) — so we show the same success message
+    // either way, matching Supabase's own intended behaviour.
+    if(error){notify(friendlyErrorMsg(error),'error');return;}
+    notify('If that email is registered, a reset link is on its way 📬');
+    goTo('s-landing');
+  });
+}
+function doResetPassword(){
+  const p1=document.getElementById('rp-pass1').value;
+  const p2=document.getElementById('rp-pass2').value;
+  if(!p1||p1.length<6)return notify('Password must be at least 6 characters','error');
+  if(p1!==p2)return notify('Passwords do not match','error');
+  const sb=getSupabase();
+  if(!sb){notify('Database not configured','error');return;}
+  const btn=document.getElementById('rp-savebtn');
+  btn.disabled=true;btn.textContent='Updating...';
+  sb.auth.updateUser({password:p1}).then(async({error})=>{
+    btn.disabled=false;btn.textContent='Update Password →';
+    if(error){notify(friendlyErrorMsg(error),'error');return;}
+    // Sign out of the temporary recovery session and send them back to a
+    // normal sign-in with the new password — simpler and safer than
+    // trying to auto-route them into their dashboard from here.
+    await sb.auth.signOut();
+    currentUser=null;
+    notify('Password updated! Please sign in again 🙏');
     goTo('s-landing');
   });
 }
@@ -3645,8 +3746,27 @@ function renderUserRows(list){
         ${u.role==='admin'
           ?`<button class="gbtn" onclick="setUserRole('${u.id}','contestant','${(u.name||'this user').replace(/'/g,"\\'")}')" style="padding:7px 12px;font-size:12px;background:var(--muted)">Remove Admin</button>`
           :`<button class="gbtn" onclick="setUserRole('${u.id}','admin','${(u.name||'this user').replace(/'/g,"\\'")}')" style="padding:7px 12px;font-size:12px;background:#e65100">⚙️ Make Admin</button>`}
+        <button class="gbtn" onclick="deleteUserCompletely('${u.id}','${(u.name||'this user').replace(/'/g,"\\'")}')" style="padding:7px 12px;font-size:12px;background:var(--danger)">🗑️ Delete</button>
       </td>
     </tr>`).join('');
+}
+async function deleteUserCompletely(id,name){
+  if(!confirm(`Permanently delete ${name}? This removes their login, profile, quiz history, and live-game records completely. This cannot be undone.`))return;
+  const sb=getSupabase();
+  if(!sb){notify('Database not configured','error');return;}
+  // Requires phase2b-admin-delete-user.sql to have been run — that
+  // migration adds the admin_delete_user() function, since deleting a
+  // login (auth.users) can never be done through a normal table call,
+  // only through a SECURITY DEFINER RPC.
+  const {error}=await sb.rpc('admin_delete_user',{target_id:id});
+  if(error){
+    if(String(error.message||'').includes('function public.admin_delete_user'))notify('Run phase2b-admin-delete-user.sql in Supabase first','error');
+    else notify(friendlyErrorMsg(error),'error');
+    return;
+  }
+  notify(`${name} has been permanently deleted 🗑️`);
+  await loadAllData();
+  renderAdminUsers();
 }
 function filterUsers(){
   const q=document.getElementById('usr-search').value.toLowerCase();
